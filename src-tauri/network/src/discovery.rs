@@ -14,6 +14,13 @@ use workspace_clone_core::{device::*, NetworkError, Result};
 
 use crate::wire::PROTOCOL_VERSION;
 
+/// The mDNS service type this app registers and browses.
+///
+/// One constant for both halves on purpose: registering one type and parsing
+/// another's suffix is how a device ends up listed under a name the user never
+/// gave it.
+pub const SERVICE_TYPE: &str = "_workspace-clone._tcp.local.";
+
 /// Discovery service for finding paired devices on LAN
 pub struct DiscoveryService {
     daemon: Option<ServiceDaemon>,
@@ -74,7 +81,7 @@ impl DiscoveryService {
         let daemon = ServiceDaemon::new().map_err(|e| NetworkError::Discovery(e.to_string()))?;
 
         // Register local service
-        let service_type = "_workspace-clone._tcp.local.";
+        let service_type = SERVICE_TYPE;
 
         // The mDNS instance is named after the *display name*, not the device id.
         //
@@ -233,13 +240,7 @@ fn parse_discovered_device(info: &ServiceInfo) -> Option<DiscoveredDevice> {
 
     Some(DiscoveredDevice {
         device_id,
-        // The instance name carries a trailing dot and the `.local.` suffix,
-        // neither of which helps a person recognise their own laptop.
-        name: info
-            .get_fullname()
-            .trim_end_matches('.')
-            .trim_end_matches(".local")
-            .to_string(),
+        name: instance_display_name(info.get_fullname(), SERVICE_TYPE),
         os: properties
             .get("os")
             .map(|s| s.val_str().trim().to_string())
@@ -257,6 +258,45 @@ fn parse_discovered_device(info: &ServiceInfo) -> Option<DiscoveredDevice> {
         static_public_key,
         last_seen: chrono::Utc::now().into(),
     })
+}
+
+/// The display name a human chose, recovered from an mDNS full name.
+///
+/// An mDNS full name is `{instance}.{service type}.{domain}`, so
+/// `BISWAJITA._workspace-clone._tcp.local.` is one device called `BISWAJITA`.
+/// Only the instance label is a name; the rest is DNS plumbing, and a device
+/// list is read by people looking for their own laptop.
+///
+/// This used to strip the trailing dot and the `.local` domain and stop there,
+/// which left the *service type* on the end -- so the laptop appeared as
+/// `BISWAJITA._workspace-clone._tcp`, which is the opposite of recognising it.
+/// The comment beside the old code said the goal was a name that helps a person
+/// recognise their own machine, so this is the bug the comment was warning about
+/// rather than the bug it described.
+///
+/// The whole service suffix is removed rather than a `.local` substring,
+/// because an instance label may legitimately end in one: a Mac whose display
+/// name is `ABHISHEKs-MacBook-Air.local` must keep it. Stripping `.local` as a
+/// suffix would quietly rename that device to something the user never chose.
+///
+/// The suffix is matched case-insensitively because mDNS names are, and a peer
+/// is free to register its type in any case it likes.
+pub(crate) fn instance_display_name(fullname: &str, service_type: &str) -> String {
+    // `service_type` carries its own trailing dot in the constant it comes from;
+    // build the suffix that actually appears in a full name.
+    let suffix = format!(".{service_type}");
+
+    if fullname.len() > suffix.len() {
+        let (label, rest) = fullname.split_at(fullname.len() - suffix.len());
+        if rest.eq_ignore_ascii_case(&suffix) {
+            return label.to_string();
+        }
+    }
+
+    // No recognisable suffix. Better a slightly noisy name than an empty one,
+    // since an empty name leaves a device the user cannot tell apart from
+    // another nameless device on the same network.
+    fullname.trim_end_matches('.').to_string()
 }
 
 /// Ask a device at a known address who it is.
@@ -556,6 +596,64 @@ mod tests {
             device.name
         );
         assert!(!device.name.contains(".local"), "got {:?}", device.name);
+
+        // The service type is the part this assertion used to miss, and it is
+        // the part that was actually wrong: the device was listed as
+        // `peer-1._workspace-clone._tcp`, which is a service type wearing a
+        // device's name. Checking only for a trailing dot and `.local` left this
+        // green while the name was unusable, so the exact expected value is
+        // asserted rather than two properties that happen to hold.
+        assert_eq!(
+            device.name, "peer-1",
+            "the name must be the instance label alone, with no service type"
+        );
+    }
+
+    #[test]
+    fn a_display_name_that_itself_ends_in_local_is_preserved() {
+        // A Mac named `ABHISHEKs-MacBook-Air.local` really does advertise that
+        // label. Stripping `.local` as a suffix would rename a device to
+        // something the user never chose, which is the same class of bug as
+        // leaving the service type on.
+        assert_eq!(
+            instance_display_name(
+                "ABHISHEKs-MacBook-Air.local._workspace-clone._tcp.local.",
+                SERVICE_TYPE
+            ),
+            "ABHISHEKs-MacBook-Air.local"
+        );
+    }
+
+    #[test]
+    fn the_service_type_is_stripped_whatever_its_case() {
+        // mDNS names are case-insensitive and a peer may register its type in
+        // any case, so a case-sensitive suffix match would leave that peer's
+        // name carrying its own plumbing.
+        assert_eq!(
+            instance_display_name("BISWAJITA._Workspace-Clone._TCP.local.", SERVICE_TYPE),
+            "BISWAJITA"
+        );
+    }
+
+    #[test]
+    fn an_unrecognised_full_name_still_yields_something_usable() {
+        // A name is never a good reason to lose a device. Better a noisy name
+        // than an empty one, since two nameless devices are indistinguishable.
+        assert_eq!(
+            instance_display_name("something-else.local.", SERVICE_TYPE),
+            "something-else.local"
+        );
+        assert_eq!(instance_display_name("bare", SERVICE_TYPE), "bare");
+    }
+
+    #[test]
+    fn a_device_whose_label_is_only_the_service_type_is_not_reduced_to_nothing() {
+        // Guards the `len >` comparison: a full name that is nothing but the
+        // suffix would otherwise produce an empty label, and an empty name is
+        // worse than a noisy one.
+        let degenerate = SERVICE_TYPE.to_string();
+        let name = instance_display_name(&degenerate, SERVICE_TYPE);
+        assert!(!name.is_empty(), "a device must never be listed as blank");
     }
 
     #[tokio::test]
