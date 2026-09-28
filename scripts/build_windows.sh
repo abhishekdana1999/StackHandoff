@@ -75,6 +75,38 @@ if [[ "$HOST" != *msvc* ]]; then
 fi
 info "  rust host $HOST (MSVC: OK)"
 
+# --- Application Control ----------------------------------------------------
+# Smart App Control blocks unsigned executables that have no established
+# reputation, and cargo has to *execute* every dependency's build script, so
+# when it is active the build dies partway through the first few dozen crates
+# and blames a crate nobody is editing: "failed to run custom build command
+# for `anyhow`" / "could not execute process ... build-script-build (never
+# executed)" / "An Application Control policy has blocked this file
+# (os error 4551)".
+#
+# The state is read rather than probed. Compiling a throwaway binary and
+# running it looks like the direct test, but the verdict is reputation-based
+# and not reproducible: on this machine such a probe passed while cargo's own
+# build scripts were blocked seconds later in the same target directory. A
+# warning that is sometimes wrong is worse than none, so this only reports
+# what the OS says, and lets the build go ahead and try.
+info "Checking application-control policy"
+SAC_STATE="$(powershell.exe -NoProfile -Command \
+  "(Get-MpComputerStatus).SmartAppControlState" 2>/dev/null | tr -d '\r' || true)"
+case "$SAC_STATE" in
+  On)
+    red "Smart App Control is ON. It can block the unsigned build scripts that"
+    red "cargo needs to execute, which fails this build with os error 4551."
+    red ""
+    red "If that happens, either turn it off (Windows Security > App & browser"
+    red "control > Smart App Control > Off, then reboot), or build the installer"
+    red "on a GitHub runner with .github/workflows/windows-installer.yml,"
+    red "which leaves this machine's protections untouched."
+    echo
+    ;;
+  *) info "  Smart App Control: ${SAC_STATE:-not reported}" ;;
+esac
+
 # --- Dependencies ----------------------------------------------------------
 info "Installing frontend dependencies"
 npm ci
@@ -106,8 +138,57 @@ info "  inputs OK"
 # beforeBuildCommand (npm run build) runs the frontend build, so dist/ is
 # regenerated here and cannot be stale.
 info "Building the Windows installer. This takes 5-20 minutes the first time."
-set -x
+VSDEV_BAT=""
+# vswhere is asked first because it is authoritative and version-agnostic. The
+# hardcoded list this replaces only knew about "2022", while the installed
+# Build Tools live under a directory named for the compiler's own version
+# ("18" here), and may sit under either Program Files or Program Files (x86).
+# That mismatch is why this script reported no Visual Studio on a machine that
+# had it fully installed, C++ workload and all.
+VSWHERE=""
+for v in \
+  "/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe" \
+  "/c/Program Files/Microsoft Visual Studio/Installer/vswhere.exe"; do
+  if [[ -f "$v" ]]; then VSWHERE="$v"; break; fi
+done
+if [[ -n "$VSWHERE" ]]; then
+  while IFS= read -r install_dir; do
+    [[ -n "$install_dir" ]] || continue
+    candidate="$(cygpath -u "$install_dir" 2>/dev/null || true)/Common7/Tools/VsDevCmd.bat"
+    if [[ -f "$candidate" ]]; then
+      VSDEV_BAT="$(cygpath -w "$candidate")"
+      break
+    fi
+  done < <("$VSWHERE" -latest -products '*' -property installationPath 2>/dev/null || true)
+fi
+if [[ -z "$VSDEV_BAT" ]]; then
+  # No vswhere (a stripped-down Build Tools install). Sweep both Program Files
+  # trees for any version, any edition.
+  for candidate in /c/Program\ Files*/Microsoft\ Visual\ Studio/*/*/Common7/Tools/VsDevCmd.bat; do
+    if [[ -f "$candidate" ]]; then
+      VSDEV_BAT="$(cygpath -w "$candidate")"
+      break
+    fi
+  done
+fi
+if [[ -z "$VSDEV_BAT" ]]; then
+  red "Could not find VsDevCmd.bat for the Visual Studio Build Tools installation."
+  red "Install the 'Desktop development with C++' workload, then rerun this script."
+  exit 1
+fi
+info "  VsDevCmd.bat $VSDEV_BAT"
+ROOT_WIN="$(cygpath -w "$ROOT")"
+BUILD_CMD="$ROOT/.build_windows.cmd"
+cleanup_build_cmd() { rm -f "$BUILD_CMD"; }
+trap cleanup_build_cmd EXIT
+cat > "$BUILD_CMD" <<EOF
+@echo off
+call "$VSDEV_BAT" -arch=x64 -host_arch=x64 >nul || exit /b 1
+cd /d "$ROOT_WIN" || exit /b 1
 npx tauri build --config src-tauri/app/tauri.conf.json --target "$HOST"
+EOF
+set -x
+MSYS_NO_PATHCONV=1 cmd.exe /d /c "$(cygpath -w "$BUILD_CMD")"
 set +x
 
 BUNDLE="src-tauri/target/${HOST}/release/bundle"
