@@ -25,6 +25,7 @@ import {
 } from '@lib/ipc';
 import { isTransferFinished } from '@model';
 import type { DiscoveredDevice, PairedDevice, WorkspaceManifest } from '@model';
+import { canReceive, scopeLabel } from '@lib/trustScopes';
 import { useAppStore } from '@store/useAppStore';
 
 /**
@@ -59,7 +60,7 @@ function sendability(candidate: Candidate): { ok: boolean; reason?: string } {
   if (candidate.paired.revoked) {
     return { ok: false, reason: 'Paired, then revoked' };
   }
-  if (!candidate.paired.trust_scopes.includes('receive')) {
+  if (!canReceive(candidate.paired.trust_scopes)) {
     return { ok: false, reason: 'Not allowed to receive workspaces' };
   }
   return { ok: true };
@@ -335,7 +336,10 @@ export function TransferScreen() {
                           {candidate.paired?.os ?? candidate.discovered?.os ?? 'unknown OS'}
                         </span>
                         {candidate.paired && (
-                          <span>Allowed: {candidate.paired.trust_scopes.join(', ') || 'nothing'}</span>
+                          <span>
+                            Allowed:{' '}
+                            {candidate.paired.trust_scopes.map(scopeLabel).join(', ') || 'nothing'}
+                          </span>
                         )}
                       </div>
                       {!verdict.ok && verdict.reason && (

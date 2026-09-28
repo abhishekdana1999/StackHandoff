@@ -1,3 +1,5 @@
+import type { TrustScope } from '@lib/trustScopes';
+
 /**
  * TypeScript mirrors of what the Rust commands actually serialise.
  *
@@ -60,7 +62,17 @@ export type RestoreActionType =
 
 export type ActionType = 'open_url' | 'run_command' | 'install_app' | 'configure_setting';
 
-export type TrustScope = 'receive' | 'send' | 'files' | 'clipboard';
+/**
+ * Trust scopes have two spellings, one for each direction across the IPC
+ * boundary, and confusing them once disabled every transfer destination in the
+ * app. Both types and the table relating them now live in `@lib/trustScopes`,
+ * which is the single place a scope may be named. Re-exported here because
+ * `PairedDevice` refers to `TrustScope` and importers should not need two paths.
+ */
+export type {
+  RequestedTrustScope,
+  TrustScope,
+} from '@lib/trustScopes';
 
 export type Portability = 'cross_platform' | 'windows_only' | 'macos_only' | 'linux_only';
 

@@ -272,9 +272,24 @@ pub enum RestoreStep {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct Policy {
+    /// File transfer, on or off, for the whole capture.
+    ///
+    /// The camelCase alias is not cosmetic. This one type is deserialized from
+    /// two places with two different conventions: over IPC it arrives inside a
+    /// `CaptureSelection` that the TypeScript builds in camelCase, and it is
+    /// serialized into the manifest, which is snake_case on the wire by
+    /// decision. A blanket `rename_all = "camelCase"` would have fixed the
+    /// first and silently rewritten the manifest format and every manifest
+    /// already stored, so each field takes an alias instead: both spellings
+    /// are accepted, and exactly one is ever written.
+    #[serde(alias = "fileTransfer")]
     pub file_transfer: FileTransferPolicy,
+    // No alias needed: `clipboard` is one word and so is spelled the same in
+    // both conventions.
     pub clipboard: ClipboardPolicy,
+    #[serde(alias = "automaticCommandExecution")]
     pub automatic_command_execution: bool,
+    #[serde(alias = "secretValuesIncluded")]
     pub secret_values_included: bool,
 }
 

@@ -492,6 +492,12 @@ Continue to **Restore Plan**. Two things happen here.
 directory is not the Windows laptop's home directory. This screen asks you to
 name a real folder on **this** machine for each bucket.
 
+> A bucket holding **one** project uses the folder exactly as you write it —
+> typing `E:/workspace-clone` restores the code *into* `E:/workspace-clone`, not
+> into a subfolder under it. A bucket holding **several** projects nests each in
+> its own folder beneath yours, so they cannot overwrite one another. The step
+> table always shows the exact final path of every project before anything runs.
+
 > **Leave a bucket empty and its projects are planned without a destination and
 > reported as unplaced.** They are never written somewhere you did not name. This
 > is deliberate, and it is the most common cause of a restore that "succeeded"
@@ -803,11 +809,11 @@ build takes minutes; later ones take seconds.
 ### Tests
 
 ```bash
-# Rust — 355 tests
+# Rust — 374 tests
 cd src-tauri
 cargo test --workspace -- --test-threads=2
 
-# Frontend — 83 tests, run once and exit (npm test alone starts a watcher)
+# Frontend — 84 tests, run once and exit (npm test alone starts a watcher)
 npx vitest run
 
 # Type checking
@@ -855,13 +861,15 @@ in your tree; it is a leftover and will not match current source.
 
 | Layer | Count | Covers |
 |---|---|---|
-| `core`, `crypto`, `db`, `adapters`, `preflight`, `restore` units | 215 | pure logic: manifest validation, crypto, repositories, requirement checks |
-| `network` units | 64 | handshake, framing, digest, cancellation |
+| `core`, `crypto`, `db`, `preflight`, `restore` units | 153 | pure logic: manifest validation, crypto, repositories, requirement checks |
+| `adapters` units | 62 | capture, detection, path redaction, the safety predicates |
+| `network` units | 68 | handshake, framing, digest, cancellation, discovery and naming |
 | `network/tests/loopback_transfer.rs` | 8 | real TCP, real Noise_IK, two services in one process |
-| `commands` unit tests | 57 | authorization gates, refusals, validation, platform naming |
+| `commands` unit tests | 66 | authorization gates, refusals, validation, platform naming, destination resolution |
 | **`commands/tests/two_device_transfer.rs`** | **11** | **the whole two-machine path** |
-| **Total Rust** | **355** | |
-| Frontend (`vitest`) | 83 | routes resolve the URL id; receive UI; IPC wiring; theme + shell; one `<h1>` per route; status bar reads the backend |
+| **`adapters/tests/ipc_selection_contract.rs`** | **6** | **TypeScript and Rust agree on field names** |
+| **Total Rust** | **374** | |
+| Frontend (`vitest`) | 84 | routes resolve the URL id; receive UI; IPC wiring; theme + shell; one `<h1>` per route; status bar reads the backend |
 
 ### `two_device_transfer.rs` is the important one
 
@@ -925,6 +933,41 @@ changes.**
 (fg-on-bg 5.79–9.48 dark, 5.48–6.63 light, all clearing WCAG AA's 4.5), not by a
 test that would fail if a future colour change broke it. A `jest-axe` or
 `vitest-axe` pass would close that; it is not installed.
+
+### The seam between TypeScript and Rust
+
+`src-tauri/adapters/tests/ipc_selection_contract.rs` closes the one gap the other
+layers cannot. The TypeScript and the Rust command structs are hand-mirrored in
+two languages, and nothing in the build used to compare them: `tsc` checks
+TypeScript against its own types, `cargo test` builds the structs in Rust where
+field naming is irrelevant, and `check_command_parity.py` compares command
+*names*. A field renamed on one side only is invisible to all three.
+
+So the test reads the real `src/types/index.ts` and compares its field names
+against the names serde will actually accept. Rename a field in either language
+and the build fails. `deny_unknown_fields` on the capture-selection structs is
+the other half: serde's default is to ignore an unrecognised key, which turns
+any such mismatch into a **successful capture that silently omits what the user
+selected**.
+
+> This cost a real live-test failure, and the error message pointed somewhere
+> unhelpful. A capture failed with `missing field `file_transfer`` — a field the
+> UI *was* sending, under the name it was also sending. Rust read the selection
+> as `snake_case`, the UI wrote it as `camelCase`, and the only reason anything
+> failed at all is that the nested `Policy` happened to be checked first. Had
+> that gone the other way, the capture would have "succeeded" with every list
+> empty: the URLs the user pasted would have vanished and the browser adapter
+> would have looked like the culprit, four functions from the actual cause.
+
+Two things worth knowing if you touch that test. `Policy` is the exception to
+`rename_all` and takes per-field `alias`es instead, because it is also the
+manifest's policy and the manifest is `snake_case` on the wire (DEC-029) — a
+blanket rename there would appear to work while rewriting the wire format for
+every manifest already stored. And the field-name comparison on its own does
+**not** catch removal of the `rename_all` attribute, because it converts
+`snake_case` to `camelCase` first and therefore agrees either way; a separate
+test pins the convention directly. Both facts were established by reverting the
+fix and re-running, not by inspection.
 
 ---
 
@@ -1151,10 +1194,23 @@ Proven on real hardware:
 - Discovery, name resolution and the firewall are all fine: a TCP connect from
   the Mac to the laptop's advertised transfer port succeeded in 0.01s.
 
+Now proven, on the two real machines:
+
+- The Noise handshake and the pairing ceremony. The user paired from both sides
+  and the safety numbers matched. The device id stored on the Mac,
+  `hnODGDVs/oYDiOhuQO941A==`, is byte-identical to the one the laptop
+  advertises — derived independently on two separately-built machines, which is
+  the strongest evidence available that the keychain and Credential Manager
+  paths agree.
+- The app serves its transfer listener. A probe that distinguishes a *bound*
+  port from a *served* one passes against the running app and fails against a
+  deliberately unserved listener (see §13).
+
 Still unproven:
 
-- The Noise handshake and completing the pairing ceremony.
-- Any actual capture → transfer → restore.
+- Any actual capture → transfer → restore. The first attempt failed on a
+  command-argument bug (BUG-024, since fixed); the end-to-end path has not yet
+  been run to completion.
 - The adapter probes. A successful build says nothing about whether the VS Code
   probe finds a per-user install; that only shows up on a capture. The old
   Windows list contained a literal `C:\Users\USERNAME\...` path that nothing
@@ -1165,6 +1221,15 @@ Still unproven:
 
 The failure mode to expect more of: detection code that reports *absence*
 rather than failing loudly, so a wrong answer becomes a wrong instruction.
+
+**There is no incoming-pairing prompt yet.** Pairing is two-sided and both
+people drive it: each machine independently initiates, compares the two safety
+numbers by eye, and confirms. So when you start pairing from the Mac, the
+laptop does not light up — you have to go and start it from there too. The
+instruction in the dialog says so, but a real notification with Accept/Decline
+is the missing piece. Adding it means a new frame kind on the wire and a branch
+in the accept loop, which is a real change to the trust boundary rather than a
+screen.
 
 **The macOS bundle is ad-hoc signed, and `spctl` will still say "rejected".**
 `bundle.macOS.signingIdentity` is set to `"-"` in `tauri.conf.json`, so

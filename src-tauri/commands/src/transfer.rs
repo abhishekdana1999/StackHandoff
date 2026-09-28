@@ -424,6 +424,44 @@ pub fn parse_trust_scopes(requested: &[String]) -> Result<Vec<TrustScope>> {
 /// failure is *not* an error return: the transfer layer has already recorded why
 /// it failed, and a thrown error here would lose the digest, the byte count and
 /// the peer's name that make the failure explainable.
+/// Choose the peer record a send should use.
+///
+/// Extracted as a pure function so the two-source rule can be tested directly.
+/// It is a function rather than inline `or_else` for a reason that only shows up
+/// in review: the two sources are different maps maintained by different
+/// services, and the order is the whole point. Written inline, the second
+/// `.or_else` is the obvious-looking way to add "just also check the other map",
+/// and nothing at the call site says which map is the one that is actually
+/// populated at runtime.
+///
+/// The bug this exists to prevent: only the second source was consulted, and it
+/// is fed by a method nothing calls, so *every* send failed to resolve a
+/// destination even while the UI listed the device as reachable. A test that
+/// built its own peer record and passed it straight to the transport would never
+/// have seen it, which is exactly what the existing suite did.
+///
+/// Discovery wins over the remembered record so a device that has moved to a new
+/// address, or come back with a fresh one, is reached at where it is now rather
+/// than where it was.
+fn resolve_destination(
+    from_discovery: Option<DiscoveredDevice>,
+    remembered: Option<DiscoveredDevice>,
+    device_id: &str,
+) -> Result<DiscoveredDevice> {
+    from_discovery
+        .or(remembered)
+        .ok_or_else(|| {
+            NetworkError::Connection(format!(
+                "'{device_id}' is not among the devices this app can currently see. \
+                 Discovery finds machines by browsing the network, so one that is \
+                 asleep, on another subnet, or has this app closed cannot be reached, \
+                 however well it is paired. Pairing grants permission; it does not \
+                 create a route."
+            ))
+            .into()
+        })
+}
+
 #[command]
 pub async fn send_workspace(
     state: State<'_, NetworkState>,
@@ -458,20 +496,43 @@ pub async fn send_workspace(
     // again with its own key on arrival.
     let payload = manifest_payload(pool.inner(), &workspace_id).await?;
 
+    // The peer itself, resolved from discovery *before* the transfer lock below is
+    // taken, so the two locks are never held at once. The transfer lock is held
+    // across the whole send; nesting discovery inside it would establish one lock
+    // order here and risk a deadlock against any future caller that nests the
+    // other way.
+    //
+    // Discovery's own map is the primary source, and it has to be: that is the map
+    // `get_discovered_devices` reads, so it is the one actually populated while the
+    // app runs. This used to consult only `TransferService::known`, a second map
+    // fed exclusively by `remember_device` -- and nothing in the workspace ever
+    // called that method, so `known` was empty for the lifetime of the process.
+    // Every send therefore failed here with "No device with id ... is currently
+    // reachable" *before a socket was opened*, on a device the UI was
+    // simultaneously showing as on-network, paired and permitted to receive.
+    // Discovery could see the laptop; the send path could not. The message even
+    // told the user to check that discovery had found the device, which it had --
+    // the screen they were looking at proved it.
+    let from_discovery = {
+        let guard = state.inner().discovery.lock().await;
+        match guard.as_ref() {
+            Some(discovery) => discovery.get_device(&destination_device_id).await,
+            None => None,
+        }
+    };
+
     // The peer list is behind the service's own lock because a send mutates it.
     let service = service.lock().await;
 
-    // A peer is looked up in two places, in this order: what discovery has seen
-    // on the network right now, and what a previous command recorded. The second
-    // is what lets a send work to a device the user selected a moment ago, when
-    // an mDNS record has since expired.
-    let destination = service.discovered_device(&destination_device_id).ok_or_else(|| {
-        NetworkError::Connection(format!(
-            "No device with id '{destination_device_id}' is currently reachable. \
-             Check that it is running, on the same network, and that discovery \
-             has found it on this screen."
-        ))
-    })?;
+    // A peer is looked up in two places, in this order: what discovery has seen on
+    // the network right now, and what a previous command recorded. The second is
+    // what lets a send work to a device the user selected a moment ago, when its
+    // mDNS record has since expired.
+    let destination = resolve_destination(
+        from_discovery,
+        service.discovered_device(&destination_device_id),
+        &destination_device_id,
+    )?;
 
     let source_device_id = local_device_id(pool.inner()).await?;
     let started = chrono::Utc::now();
@@ -690,6 +751,99 @@ mod tests {
         assert_eq!(
             stored, advertised,
             "a paired peer's id must be the value discovery advertises, or no send can find it"
+        );
+    }
+
+    /// A discovered-device record, as discovery would hold it for a peer.
+    fn peer(id: &str, address: &str) -> DiscoveredDevice {
+        DiscoveredDevice {
+            device_id: id.to_string(),
+            name: "BISWAJITA".to_string(),
+            os: "windows".to_string(),
+            app_version: "0.1.0".to_string(),
+            protocol_version: 1,
+            addresses: vec![address.to_string()],
+            port: 47890,
+            capabilities: Default::default(),
+            static_public_key: "peer-key".to_string(),
+            last_seen: chrono::Utc::now().into(),
+        }
+    }
+
+    #[test]
+    fn a_send_resolves_a_destination_that_only_discovery_can_see() {
+        // The live bug. `TransferService::known` is populated exclusively by
+        // `remember_device`, and nothing in the workspace calls it, so that map is
+        // empty for the whole life of the process. The send path consulted only
+        // that map, so every send died here -- while the UI, reading the *other*
+        // map, showed the very same device as on-network, paired and allowed to
+        // receive.
+        //
+        // `remembered` is None here precisely because that is the real state. A
+        // test that called `remember_device` first, or passed a peer record
+        // straight to the transport, would have agreed with the bug.
+        let resolved = resolve_destination(
+            Some(peer("hnODGDVs/oYDiOhuQO941A==", "192.168.31.24")),
+            None,
+            "hnODGDVs/oYDiOhuQO941A==",
+        )
+        .expect("discovery alone must be enough to resolve a destination");
+
+        assert_eq!(resolved.device_id, "hnODGDVs/oYDiOhuQO941A==");
+        assert_eq!(resolved.addresses, ["192.168.31.24"]);
+    }
+
+    #[test]
+    fn discovery_wins_over_a_stale_remembered_record() {
+        // A laptop that has moved, or come back with a different address, must be
+        // reached where it is now. Preferring the remembered copy would keep
+        // dialling an address that stopped answering.
+        let resolved = resolve_destination(
+            Some(peer("peer-1", "192.168.31.99")),
+            Some(peer("peer-1", "192.168.31.24")),
+            "peer-1",
+        )
+        .expect("discovery has it");
+
+        assert_eq!(
+            resolved.addresses,
+            ["192.168.31.99"],
+            "the address discovery reports now must beat the one recorded earlier"
+        );
+    }
+
+    #[test]
+    fn a_remembered_peer_still_works_when_its_record_has_expired() {
+        // The second source earns its place here: a user who picks a destination
+        // and clicks send a moment later should not fail because the mDNS record
+        // aged out in between.
+        let resolved = resolve_destination(
+            None,
+            Some(peer("peer-1", "192.168.31.24")),
+            "peer-1",
+        )
+        .expect("a remembered peer is still a destination");
+
+        assert_eq!(resolved.addresses, ["192.168.31.24"]);
+    }
+
+    #[test]
+    fn a_device_neither_map_knows_is_refused_with_a_usable_reason() {
+        // The old message told the user to "check that discovery has found it on
+        // this screen" -- which, when discovery *had* found it, sent them to look
+        // at the very screen proving the claim false.
+        let err = resolve_destination(None, None, "peer-1")
+            .expect_err("an unknown device cannot be a destination")
+            .to_string();
+
+        assert!(err.contains("peer-1"), "names the device: {err}");
+        assert!(
+            err.contains("Pairing grants permission"),
+            "must distinguish being unreachable from being untrusted: {err}"
+        );
+        assert!(
+            !err.contains("has found it on this screen"),
+            "must not tell the user to verify on the screen that shows it: {err}"
         );
     }
 

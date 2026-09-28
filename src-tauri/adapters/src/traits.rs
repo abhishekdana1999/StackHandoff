@@ -262,6 +262,11 @@ impl LocalContext {
 /// used to run the git and editor adapters and is recorded in the manifest only
 /// as a non-identifying hint, never as a live path.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+// camelCase because this is an IPC-boundary type: the TypeScript
+// `SelectedProject` the UI constructs uses `sourcePath` and
+// `destinationLocationId`. Every other command-boundary type in this workspace
+// carries this attribute for the same reason.
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SelectedProject {
     pub id: String,
     pub name: String,
@@ -276,6 +281,9 @@ pub struct SelectedProject {
 /// The blueprint forbids automatically replaying history, so these are typed
 /// by the user and offered on the destination rather than captured.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+// camelCase for the same reason as `SelectedProject`: the UI sends
+// `workingDirectory`.
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ApprovedCommand {
     pub label: String,
     pub command: String,
@@ -288,6 +296,26 @@ pub struct ApprovedCommand {
 /// flag and an empty list can disagree and the adapters would have to guess
 /// which one wins.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+// camelCase because the TypeScript `CaptureSelection` built by
+// `CaptureScreen.handleCapture` uses `includeApplications`, `browserUrls`,
+// `terminalDirs`, `terminalCommands` and `envVarNames`.
+//
+// This attribute was missing, and the failure it caused was worth more than a
+// bad error message. Serde ignores unknown fields by default, so every one of
+// those five arrived as an *empty list* rather than an error, and the only
+// thing that stopped the capture was the nested `Policy` failing on a field
+// serde happened to check first. A user selecting three projects and pasting
+// two URLs would have watched the browser adapter report "0 URLs captured" and
+// had no way to tell that the URLs they typed were silently discarded on the
+// way in. The symptom pointed at the browser adapter; the cause was here.
+// `deny_unknown_fields` is the other half of the fix. Serde ignores an
+// unrecognised key by default, so a field the UI sends under a name this struct
+// does not know arrives as an *empty list* rather than an error -- a capture
+// that silently drops what the user selected, with a success message. The UI
+// and this struct are hand-mirrored types in two languages, so the failure mode
+// of that mirroring is a typo, and a typo should stop the capture rather than
+// quietly shrink it.
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CaptureSelection {
     pub projects: Vec<SelectedProject>,
     /// Adapter ids whose captured context should be included.

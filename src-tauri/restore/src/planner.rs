@@ -9,10 +9,11 @@
 //!
 //! Two rules shape the rest of this file:
 //!
-//! - **A manifest is untrusted input.** It arrives from another device, so a
-//!   project name is only ever used as a single path component beneath a root
-//!   the user chose on this machine. Nothing in a manifest can select where
-//!   anything is written.
+//! - **A manifest is untrusted input.** It arrives from another device. A
+//!   bucket that holds one project uses the folder the user typed as that
+//!   project's destination; a bucket that holds several uses each project's
+//!   name as a single component beneath it. Nothing in a manifest can select
+//!   where anything is written outside the directories the user picked.
 //! - **Nothing is implied.** Steps that launch something are never pre-approved,
 //!   and a manifest that asks for behaviour this build cannot express is
 //!   reported as a note rather than being silently dropped.
@@ -47,8 +48,14 @@ pub struct PlanRequest<'a> {
     /// The destination's OS and config directories. Used only to describe
     /// actions; the manifest's captured values are never reused as paths.
     pub local_context: &'a LocalContext,
-    /// Logical bucket id (for example `code`) to an absolute path on this
-    /// machine, chosen by the user during restore.
+    /// Logical bucket id (for example `code`) to a folder on this machine,
+    /// chosen by the user during restore.
+    ///
+    /// When the bucket holds exactly one project, that folder is the project's
+    /// destination -- the folder the user typed is the folder the code lands
+    /// in. When it holds several, each project is nested in its own folder
+    /// beneath it. Either way the manifest's project name cannot by itself
+    /// choose a location.
     ///
     /// A project whose bucket is absent from this map is still planned, but
     /// with no destination path, so its steps report that the user has not
@@ -525,14 +532,36 @@ fn portable_context_for(adapter_id: &str, manifest: &WorkspaceManifest) -> Porta
 
 /// Decide where each project lives on this machine.
 ///
-/// The manifest supplies a bucket and a name; this machine supplies a path per
-/// bucket. Only the name's final component is ever used, and only beneath the
-/// chosen root, so no manifest can direct a write outside the directories the
-/// user picked.
+/// The manifest supplies a bucket for each project; this machine supplies a
+/// path per bucket.
+///
+/// A bucket holding exactly one project uses the chosen path *as that
+/// project's destination* -- the folder the user typed is the folder the code
+/// lands in. The project's manifest name is not appended, because that name
+/// comes from the source machine (the last folder of the source path) and
+/// means nothing on a different layout. This is what BUG-027 got wrong:
+/// restoring the `openshorts` workspace to `E:/workspace-clone` produced
+/// `E:/workspace-clone/openshorts` -- a folder the user never named, which the
+/// restore then told them to go and create.
+///
+/// A bucket holding several projects nests each one in a folder of its own
+/// beneath the chosen path, so they cannot overwrite one another.
+///
+/// Nothing outside the directories the user picked can be written either way:
+/// a solitary project uses the root itself, a crowded bucket uses only the
+/// name's final component beneath it, and a name that is not a safe single
+/// component is refused rather than coerced.
 fn resolve_destinations(
     manifest: &WorkspaceManifest,
     roots: &BTreeMap<String, PathBuf>,
 ) -> BTreeMap<String, PathBuf> {
+    // How many projects share a bucket decides whether the chosen path is a
+    // project's destination or the folder that contains its projects.
+    let mut per_bucket: BTreeMap<&str, usize> = BTreeMap::new();
+    for project in &manifest.projects {
+        *per_bucket.entry(project.destination_location_id.as_str()).or_insert(0) += 1;
+    }
+
     let mut resolved = BTreeMap::new();
 
     for project in &manifest.projects {
@@ -544,7 +573,17 @@ fn resolve_destinations(
             continue;
         };
 
-        match safe_child(root, &project.name) {
+        let solitary = per_bucket.get(project.destination_location_id.as_str()) == Some(&1);
+        let path = if solitary {
+            // The user's chosen folder is the project's folder. The manifest
+            // name is not consulted, so nothing in a received manifest can
+            // influence where this project lands.
+            Some(root.clone())
+        } else {
+            safe_child(root, &project.name)
+        };
+
+        match path {
             Some(path) => {
                 resolved.insert(project.id.clone(), path);
             }
@@ -552,6 +591,19 @@ fn resolve_destinations(
                 "Refusing to use project name '{}' as a path component",
                 project.name
             ),
+        }
+    }
+
+    // Two distinct projects resolving to the same folder would silently
+    // overwrite each other's code. The manifest id-uniqueness rules do not
+    // cover names, and names are what is used in a crowded bucket.
+    let mut seen: BTreeMap<PathBuf, &str> = BTreeMap::new();
+    for (id, path) in &resolved {
+        if let Some(previous) = seen.insert(path.clone(), id) {
+            warn!(
+                "Projects '{previous}' and '{id}' both map to '{}'; their code would land in the same folder",
+                path.display()
+            );
         }
     }
 
@@ -764,8 +816,13 @@ mod tests {
     }
 
     #[test]
-    fn a_project_maps_under_the_chosen_root() {
-        let manifest = manifest_with(vec![project("p1", "demo", "code")], vec![]);
+    fn a_single_project_lands_exactly_in_the_folder_typed() {
+        // The live bug (BUG-027): restoring the `openshorts` workspace from
+        // this machine to `E:/workspace-clone` on another produced
+        // `E:/workspace-clone/openshorts` -- the manifest's project name, which
+        // is the source machine's folder name, appended under a root the user
+        // deliberately chose and never asked to be a parent folder.
+        let manifest = manifest_with(vec![project("p1", "openshorts", "code")], vec![]);
         let ctx = context();
         let request = PlanRequest::new(&manifest, &ctx).with_root("code", PathBuf::from("/tmp/wc-code"));
 
@@ -774,8 +831,80 @@ mod tests {
         let mapping = plan.steps.iter().find(|s| s.id == "map-path-p1").unwrap();
         assert_eq!(
             mapping.config["destination_path"],
-            serde_json::json!("/tmp/wc-code/demo")
+            serde_json::json!("/tmp/wc-code"),
+            "the typed folder itself must be the destination, not a parent of it"
         );
+        assert!(
+            mapping.description.contains("/tmp/wc-code")
+                && !mapping.description.contains("/tmp/wc-code/"),
+            "the plan's own words must not imply a subfolder: {}",
+            mapping.description
+        );
+    }
+
+    #[test]
+    fn a_solitary_project_ignores_a_hostile_name_because_the_name_is_never_used() {
+        // A malicious manifest cannot place anything anywhere here: with one
+        // project in the bucket the name is never consulted, so `../../.ssh`
+        // maps to nothing more than the folder the user typed.
+        // Over the old rule this was "produce no destination"; the stronger
+        // property is that a solitary bucket is *immune* to its project name.
+        let manifest = manifest_with(vec![project("p1", "../../.ssh", "code")], vec![]);
+        let ctx = context();
+        let request = PlanRequest::new(&manifest, &ctx).with_root("code", PathBuf::from("/tmp/wc-code"));
+
+        let destinations = resolve_destinations(&manifest, &request.destination_roots);
+
+        assert_eq!(
+            destinations["p1"],
+            PathBuf::from("/tmp/wc-code"),
+            "the hostile name must be inert, and the folder must stay exactly the one typed"
+        );
+    }
+
+    #[test]
+    fn a_bucket_with_several_projects_nests_each_beneath_the_chosen_folder() {
+        // Only a solitary bucket may use the chosen folder itself: two projects
+        // cannot both land in it, and with names from two different machines
+        // there is no other portable way to keep them apart.
+        let manifest = manifest_with(
+            vec![
+                project("p1", "frontend", "code"),
+                project("p2", "backend", "code"),
+            ],
+            vec![],
+        );
+        let ctx = context();
+        let request = PlanRequest::new(&manifest, &ctx).with_root("code", PathBuf::from("/tmp/wc-code"));
+
+        let destinations = resolve_destinations(&manifest, &request.destination_roots);
+
+        assert_eq!(destinations["p1"], PathBuf::from("/tmp/wc-code/frontend"));
+        assert_eq!(destinations["p2"], PathBuf::from("/tmp/wc-code/backend"));
+    }
+
+    #[test]
+    fn a_hostile_name_in_a_crowded_bucket_still_produces_no_destination() {
+        // The safe_child boundary still guards the nested case, where the name
+        // *is* consulted.
+        let manifest = manifest_with(
+            vec![
+                project("p1", "../../.ssh", "code"),
+                project("p2", "backend", "code"),
+            ],
+            vec![],
+        );
+        let ctx = context();
+        let request = PlanRequest::new(&manifest, &ctx).with_root("code", PathBuf::from("/tmp/wc-code"));
+
+        let destinations = resolve_destinations(&manifest, &request.destination_roots);
+
+        assert!(
+            !destinations.contains_key("p1"),
+            "a traversing name must not reach the plan: {:?}",
+            destinations
+        );
+        assert_eq!(destinations["p2"], PathBuf::from("/tmp/wc-code/backend"));
     }
 
     #[test]
@@ -793,7 +922,7 @@ mod tests {
             .expect("the git adapter must plan a check for the project");
         assert_eq!(
             check.config["destination_path"],
-            serde_json::json!("/tmp/wc-code/demo")
+            serde_json::json!("/tmp/wc-code")
         );
         assert_eq!(check.adapter_id, "git");
         assert!(check.dependencies.contains(&"map-path-p1".to_string()));
@@ -843,7 +972,7 @@ mod tests {
             .iter()
             .find(|s| s.id == "vscode-open-vscode-p1")
             .expect("expected a VS Code step");
-        assert_eq!(open.config["target"], serde_json::json!("/tmp/wc-code/demo"));
+        assert_eq!(open.config["target"], serde_json::json!("/tmp/wc-code"));
         assert_eq!(open.adapter_id, "vscode");
         // Opening an editor is a visible action, so it is never pre-approved.
         assert!(!open.approved);
@@ -903,21 +1032,19 @@ mod tests {
 
     #[test]
     fn a_traversing_project_name_produces_no_destination() {
-        let manifest = manifest_with(
-            vec![project("p1", "../../.ssh", "code")],
-            vec![],
-        );
-        let ctx = context();
-        let request = PlanRequest::new(&manifest, &ctx).with_root("code", PathBuf::from("/tmp/wc-code"));
-
-        let plan = run(planner().generate_plan(&request)).unwrap();
-
-        let check = plan.steps.iter().find(|s| s.id == "git-check-p1").unwrap();
-        assert!(
-            check.config.get("destination_path").is_none(),
-            "a traversing name reached the plan: {}",
-            check.config
-        );
+        // A solitary bucket is immune to its project's name (see
+        // a_solitary_project_ignores_a_hostile_name); the traversal gate that
+        // matters now is the crowded-bucket one under
+        // a_hostile_name_in_a_crowded_bucket_still_produces_no_destination.
+        // This legacy shape exercised the old always-nested rule. Keep the name
+        // of the safety property it guarded by asserting it still holds for the
+        // nested path resolver directly.
+        for name in ["../../.ssh", "/etc/cron.d", "a/b", "a\\b", "", "..", "."] {
+            assert!(
+                safe_child(Path::new("/tmp/wc-code"), name).is_none(),
+                "accepted an unsafe name: {name:?}"
+            );
+        }
     }
 
     #[test]
@@ -1155,7 +1282,7 @@ mod tests {
     }
 
     #[test]
-    fn two_projects_with_the_same_name_get_distinct_destinations() {
+    fn one_project_per_bucket_lands_exactly_in_each_chosen_folder() {
         let manifest = manifest_with(
             vec![project("p1", "demo", "code"), project("p2", "demo", "work")],
             vec![],
@@ -1167,8 +1294,8 @@ mod tests {
 
         let destinations = resolve_destinations(&manifest, &request.destination_roots);
 
-        assert_eq!(destinations["p1"], PathBuf::from("/tmp/wc-code/demo"));
-        assert_eq!(destinations["p2"], PathBuf::from("/tmp/wc-work/demo"));
+        assert_eq!(destinations["p1"], PathBuf::from("/tmp/wc-code"));
+        assert_eq!(destinations["p2"], PathBuf::from("/tmp/wc-work"));
     }
 
     #[test]

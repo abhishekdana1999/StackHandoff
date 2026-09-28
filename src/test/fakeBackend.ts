@@ -126,7 +126,11 @@ export function makePairedDevice(overrides: Partial<PairedDevice> = {}): PairedD
     name: "Alex's MacBook",
     public_key: 'noise-public-key-b64',
     fingerprint: 'AbCdEfGhIjKlMnOp',
-    trust_scopes: ['receive'],
+    // The serde spelling, matching what `list_paired_devices` really returns.
+    // This fixture said `'receive'` while the type said `TrustScope` and nothing
+    // complained until the type was corrected -- which is exactly the drift that
+    // disabled every transfer destination.
+    trust_scopes: ['receive-workspaces'],
     os: 'macos',
     os_version: '15.0',
     app_version: '0.1.0',

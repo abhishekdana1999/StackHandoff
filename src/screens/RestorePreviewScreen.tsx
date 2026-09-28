@@ -210,9 +210,11 @@ export function RestorePreviewScreen() {
         <CardHeader>
           <CardTitle>Destination folders</CardTitle>
           <CardDescription>
-            Each project's bucket on this machine, as a folder. Leave one out and its project is
-            planned without a destination and reported as unplaced -- it is never written somewhere
-            you did not name.
+            One folder per bucket. A bucket holding a single project uses the folder exactly as
+            written; a bucket holding several nests each project in its own folder beneath it. The
+            steps below always show the exact final path. Leave one out and its project is planned
+            without a destination and reported as unplaced -- it is never written somewhere you did
+            not name.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">

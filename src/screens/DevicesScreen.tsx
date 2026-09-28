@@ -36,15 +36,13 @@ import {
   updatePairedDevice,
   verifyPairing,
 } from '@lib/ipc';
-import type { DiscoveredDevice, PairedDevice, TrustScope } from '@model';
+import type { DiscoveredDevice, PairedDevice, RequestedTrustScope } from '@model';
+import { scopeLabel, TRUST_SCOPES } from '@lib/trustScopes';
 
 /** The scopes the backend accepts, with the plain-English meaning of each. */
-const SCOPES: { value: TrustScope; label: string; detail: string }[] = [
-  { value: 'receive', label: 'Receive', detail: 'May be sent workspaces' },
-  { value: 'send', label: 'Send', detail: 'May send workspaces to this device' },
-  { value: 'files', label: 'Files', detail: 'May transfer files' },
-  { value: 'clipboard', label: 'Clipboard', detail: 'May transfer clipboard contents' },
-];
+// Both scope vocabularies and their labels come from one table. See the header of
+// that module for the bug this prevents.
+const SCOPES = TRUST_SCOPES;
 
 /** What the user is doing in the pairing dialog. */
 type PairMode = 'choose' | 'safety' | 'invite';
@@ -56,7 +54,15 @@ export function DevicesScreen() {
   const [mode, setMode] = useState<PairMode>('choose');
   const [remoteKey, setRemoteKey] = useState('');
   const [remoteName, setRemoteName] = useState('');
-  const [scopes, setScopes] = useState<TrustScope[]>(['receive', 'send']);
+  // Short form: this is the *request* direction, and `parse_trust_scopes`
+  // accepts `'receive' | 'send' | 'files' | 'clipboard'`. What comes back on a
+  // `PairedDevice` afterwards is the kebab-case spelling instead, which is why
+  // there are two scope types.
+  const [scopes, setScopes] = useState<RequestedTrustScope[]>(
+    SCOPES.filter((s) => s.requested === 'receive' || s.requested === 'send').map(
+      (s) => s.requested
+    )
+  );
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
@@ -297,7 +303,7 @@ export function DevicesScreen() {
                       <div className="mt-2 flex flex-wrap gap-2">
                         {device.trust_scopes.map((scope) => (
                           <Badge key={scope} variant="outline">
-                            {SCOPES.find((s) => s.value === scope)?.label ?? scope}
+                            {scopeLabel(scope)}
                           </Badge>
                         ))}
                         {device.trust_scopes.length === 0 && (
@@ -460,15 +466,18 @@ export function DevicesScreen() {
                 <Label>What this device is allowed to do</Label>
                 <div className="space-y-1">
                   {SCOPES.map((scope) => (
-                    <label key={scope.value} className="flex items-start gap-2 cursor-pointer">
+                    <label
+                      key={scope.requested}
+                      className="flex items-start gap-2 cursor-pointer"
+                    >
                       <input
                         type="checkbox"
-                        checked={scopes.includes(scope.value)}
+                        checked={scopes.includes(scope.requested)}
                         onChange={(e) =>
                           setScopes((prev) =>
                             e.target.checked
-                              ? [...prev, scope.value]
-                              : prev.filter((s) => s !== scope.value)
+                              ? [...prev, scope.requested]
+                              : prev.filter((s) => s !== scope.requested)
                           )
                         }
                         className="rounded border-input mt-1"

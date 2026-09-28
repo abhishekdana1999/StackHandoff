@@ -191,6 +191,23 @@ impl DiscoveryService {
         let devices = self.discovered_devices.read().await;
         devices.get(device_id).cloned()
     }
+
+    /// Put a device into the map as if it had just been resolved over mDNS.
+    ///
+    /// Test-only, and it exists to assert a property that is otherwise easy to
+    /// break silently: that `get_device` reads the same map the browse loop
+    /// writes. A send failed in the field because it consulted a *different*
+    /// service's map, one that nothing ever populated, while the UI read this
+    /// one and showed the device as present. Nothing in the types connects the
+    /// two, so a test that only exercises the transport cannot notice -- it hands
+    /// the peer record in directly and never asks where a real one comes from.
+    #[cfg(test)]
+    pub async fn insert_for_test(&self, device: DiscoveredDevice) {
+        self.discovered_devices
+            .write()
+            .await
+            .insert(device.device_id.clone(), device);
+    }
 }
 
 /// Turn an mDNS record into a device this build can actually connect to.
