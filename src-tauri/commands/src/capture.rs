@@ -26,15 +26,16 @@ use workspace_clone_adapters::{
 };
 use workspace_clone_core::{
     manifest::{
-        Application, CliToolRequirement, DeviceRef, EnvironmentRequirement, Policy, Project,
-        Requirements, RestorePlan, RestoreStep, RuntimeRequirement, WorkspaceManifest,
+        Application, CliToolRequirement, DeviceRef, EnvironmentRequirement, FileTransferPolicy,
+        Policy, Project, Requirements, RestorePlan, RestoreStep, RuntimeRequirement,
+        WorkspaceManifest,
     },
     DatabaseError, Result, WorkspaceError,
 };
 use workspace_clone_crypto::keys::KeyStorage;
 use workspace_clone_db::{
-    models::WorkspaceRecord,
-    repository::{DeviceRepository, WorkspaceRepository},
+    models::{WorkspaceFilesRecord, WorkspaceRecord},
+    repository::{DeviceRepository, WorkspaceFilesRepository, WorkspaceRepository},
     DbPool,
 };
 
@@ -120,17 +121,43 @@ pub async fn capture_workspace(
 
     let sealed = persist(&pool, &manifest).await?;
 
+    // Files only travel when the policy says so. `Explicit` has no per-project
+    // picker yet, so it snapshots the same content as `All` and says so; a
+    // workspace that asked for nothing keeps no files, which is exactly how
+    // every workspace before this feature behaved.
+    let files = if selection.projects.is_empty() {
+        None
+    } else {
+        match manifest.policy.file_transfer {
+            FileTransferPolicy::All => snapshot_and_store(&pool, &manifest, &selection, &mut warnings).await?,
+            FileTransferPolicy::Explicit => {
+                warnings.push(
+                    "Per-project file selection is not available yet, so every selected project's \
+                     files were included."
+                        .to_string(),
+                );
+                snapshot_and_store(&pool, &manifest, &selection, &mut warnings).await?
+            }
+            FileTransferPolicy::None => None,
+        }
+    };
+
     info!(
-        "Captured workspace {} with {} projects and {} applications",
+        "Captured workspace {} with {} projects and {} applications{}",
         manifest.workspace.id,
         manifest.projects.len(),
-        manifest.applications.len()
+        manifest.applications.len(),
+        match &files {
+            Some(f) => format!(" and {} files ({} bytes)", f.file_count, f.byte_count),
+            None => " and no files".to_string(),
+        }
     );
 
     Ok(CaptureResult {
         manifest,
         sealed,
         warnings,
+        files,
     })
 }
 
@@ -144,6 +171,107 @@ pub struct CaptureResult {
     pub sealed: String,
     /// Anything the user asked for that could not be captured.
     pub warnings: Vec<String>,
+    /// What the file snapshot carried, when the capture included files.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub files: Option<CaptureFiles>,
+}
+
+/// The file content a capture packaged for transfer.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureFiles {
+    pub file_count: u64,
+    /// Sum of file contents, not including archive overhead.
+    pub byte_count: u64,
+    /// Files skipped (secrets, denylisted dirs, size caps), for honesty.
+    pub skipped: Vec<String>,
+    /// The walk was stopped because the total size cap was reached.
+    pub truncated: bool,
+}
+
+/// Snapshot every selected project's files, seal the archive, store it, and
+/// record it in the database.
+async fn snapshot_and_store(
+    pool: &DbPool,
+    manifest: &WorkspaceManifest,
+    selection: &CaptureSelection,
+    warnings: &mut Vec<String>,
+) -> Result<Option<CaptureFiles>> {
+    let projects: Vec<(String, std::path::PathBuf)> = selection
+        .projects
+        .iter()
+        .map(|p| (p.id.clone(), std::path::PathBuf::from(&p.source_path)))
+        .collect();
+
+    let build = workspace_clone_files::snapshot::build_archive(&projects, Default::default())
+        .map_err(|e| e)?;
+
+    for skipped in &build.skipped {
+        warnings.push(format!(
+            "{}: {}", skipped.rel, skipped.reason
+        ));
+    }
+    for warning in &build.warnings {
+        warnings.push(format!("{}: {}", warning.path, warning.reason));
+    }
+    if build.overflow {
+        warnings.push(format!(
+            "The file snapshot reached the {} byte total limit, so some files were left out. \
+             The workspace still transfers; add files to fewer projects or raise the limit.",
+            workspace_clone_files::TOTAL_MAX_BYTES
+        ));
+    }
+
+    if projects.is_empty() {
+        return Ok(None);
+    }
+
+    let key = KeyStorage::load_local_keys()?.storage_key()?;
+    let sealed = workspace_clone_crypto::seal_bytes(&key, &build.tar)?;
+    let path = files_path_for(&manifest.workspace.id)?;
+    std::fs::write(&path, &sealed).map_err(|e| {
+        DatabaseError::Connection(format!(
+            "Could not write the project files to {}: {e}",
+            path.display()
+        ))
+    })?;
+
+    WorkspaceFilesRepository::new(pool.clone())
+        .upsert(&WorkspaceFilesRecord {
+            workspace_id: manifest.workspace.id.clone(),
+            encrypted_files_path: path.to_string_lossy().to_string(),
+            byte_count: build.byte_count as i64,
+            file_count: build.file_count as i64,
+            archive_format: "tar".to_string(),
+        })
+        .await?;
+
+    Ok(Some(CaptureFiles {
+        file_count: build.file_count,
+        byte_count: build.byte_count,
+        skipped: build.skipped.iter().map(|s| format!("{}: {}", s.rel, s.reason)).collect(),
+        truncated: build.overflow,
+    }))
+}
+
+/// The sealed file archive for a workspace, if it has one.
+///
+/// Public so the transfer path can put the same bytes on the wire that the
+/// capture sealed, and the restore path can hand them to the executor.
+pub(crate) async fn sealed_files(pool: &DbPool, workspace_id: &str) -> Result<Option<Vec<u8>>> {
+    let Some(record) = WorkspaceFilesRepository::new(pool.clone()).get(workspace_id).await? else {
+        return Ok(None);
+    };
+    let path = std::path::PathBuf::from(&record.encrypted_files_path);
+    let sealed = std::fs::read(&path).map_err(|e| {
+        DatabaseError::Connection(format!(
+            "The project files for '{workspace_id}' could not be read from {}: {e}",
+            path.display()
+        ))
+    })?;
+    let key = KeyStorage::load_local_keys()?.storage_key()?;
+    let tar = workspace_clone_crypto::open_bytes(&key, &sealed)?;
+    Ok(Some(tar))
 }
 
 /// Build the manifest from what the adapters returned.
@@ -552,6 +680,36 @@ async fn persist(pool: &DbPool, manifest: &WorkspaceManifest) -> Result<String> 
 /// disagree about where a workspace was sealed.
 pub fn manifest_path_for(workspace_id: &str) -> Result<PathBuf> {
     manifest_path(workspace_id)
+}
+
+/// Where the sealed file archive for a workspace lives on this device.
+///
+/// Public for the same reason as [`manifest_path_for`]: the receive side writes
+/// it and the restore side reads it, and both must agree on the name.
+pub fn files_path_for(workspace_id: &str) -> Result<PathBuf> {
+    let dir = directories::ProjectDirs::from("com", "workspaceclone", "WorkspaceClone")
+        .ok_or_else(|| {
+            DatabaseError::Connection("Could not find the application data directory".to_string())
+        })?
+        .data_dir()
+        .join("files");
+
+    std::fs::create_dir_all(&dir).map_err(|e| {
+        DatabaseError::Connection(format!("Could not create {}: {e}", dir.display()))
+    })?;
+
+    if !workspace_id
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        || workspace_id.is_empty()
+    {
+        return Err(WorkspaceError::ManifestValidation(format!(
+            "'{workspace_id}' is not a usable workspace id"
+        ))
+        .into());
+    }
+
+    Ok(dir.join(format!("{workspace_id}.files.sealed")))
 }
 
 /// Where a sealed manifest lives on this device.

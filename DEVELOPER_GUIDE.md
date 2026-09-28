@@ -296,6 +296,7 @@ Workarounds, in order of preference:
 2. **Turn the firewall off temporarily** on both machines to test. If pairing
    then works, it was the firewall.
 3. **Pair by key instead.** This always works and needs no network at all:
+
    - On the machine that will *invite*, click **Show my pairing code instead**
      in the pairing dialog. It shows a `workspace-clone://pair?...` link.
    - Copy it and send it to the other machine however you like — email, Slack,
@@ -315,10 +316,10 @@ Workarounds, in order of preference:
 While pairing, you tick what that device is allowed to do **on the machine you
 are pairing on**:
 
-| Tick box | Means |
-|---|---|
-| **Receive** — "May be sent workspaces" | The other machine may send workspaces **to this one**. |
-| **Send** — "May send workspaces to this device" | The other machine may push workspaces **to this one**. |
+| Tick box                                               | Means                                                       |
+| ------------------------------------------------------ | ----------------------------------------------------------- |
+| **Receive** — "May be sent workspaces"          | The other machine may send workspaces**to this one**. |
+| **Send** — "May send workspaces to this device" | The other machine may push workspaces**to this one**. |
 
 Both labels are written from the perspective of the machine you are standing at.
 It is the single most confusing part of the UI, so here is the concrete recipe:
@@ -374,16 +375,30 @@ The first time, the app needs to know which folders to look in.
    - **What is never captured** — environment variable *values*, tokens, cookies
      and private keys; **absolute paths**, which are replaced with a redacted hint
      like `~/code/thing`; credentials in repository remotes; and uncommitted
-     work — a dirty worktree is *reported* as dirty, not copied. Shell history is
-     never read at all.
+     **git state** — a dirty worktree is reported as dirty, and the `.git`
+     internals never travel (the working-tree files themselves do; see the next
+     bullet). Shell history is never read at all.
+   - **Project files travel too.** Every selected project's files are copied into
+     the workspace — that is the point of a "clone". The copy is made at capture
+     time, and the denylist keeps it safe: version-control internals
+     (`.git`), build output (`node_modules`, `target`, `dist`, `build`, `.next`,
+     caches), Python virtualenvs, `Pods`, and secrets (`.env`, `.pem`/`.key`,
+     `id_rsa` & friends, databases, logs) are never included, nothing bigger
+     than 128 MiB ships, and the whole snapshot stops at 512 MiB with a warning
+     saying so. A file 1 MiB over the cap or a database sitting in the tree is
+     reported in the capture warnings, not silently dropped.
    - The manifest itself is shown on the next screen, sealed, before anything is
      sent. It is the actual document that will travel, so you can read exactly
      what is in it.
-5. Click **Capture Workspace**.
+5. Click **Capture Workspace**. The log records how many files and bytes the
+   workspace carried; the receiving machine's restore report tells you on the
+   other end. If the snapshot overflowed the 512 MiB cap, a warning says so and
+   the archive is truncated to what fit; a file over the 128 MiB per-file cap is
+   skipped and named in the warnings rather than silently dropped.
 
 The workspace now appears under **Workspaces** with a green **Captured** badge.
 Its manifest is stored **encrypted on this machine**, sealed with a key that
-never leaves the Mac.
+never leaves the Mac, and so is its file archive.
 
 ---
 
@@ -443,15 +458,15 @@ Open **Workspaces → Welcome Rewards → Preflight**.
 The app compares the manifest against this machine and reports, requirement by
 requirement, whether it is satisfied. The statuses it can show:
 
-| Status | What it means |
-|---|---|
-| **Ready** | Checked on this machine and satisfied. Usually shows its evidence — `node 22.1.0`, not just "yes". |
-| **Ready — you confirmed** | You ticked it off by hand rather than the app checking it. |
-| **Present, unverified** | The tool is installed, but the app could not confirm it is the right version or configured correctly. |
-| **Sign-in required** | Installed, but you are not signed in. Suggests a command, stating the permission it needs. |
-| **Account mismatch** | Signed in, but as a different account than the one the workspace expects. |
-| **Not applicable** | Deliberately skipped on this platform. |
-| **unknown** | The app could not check this one. |
+| Status                           | What it means                                                                                         |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Ready**                  | Checked on this machine and satisfied. Usually shows its evidence —`node 22.1.0`, not just "yes".  |
+| **Ready — you confirmed** | You ticked it off by hand rather than the app checking it.                                            |
+| **Present, unverified**    | The tool is installed, but the app could not confirm it is the right version or configured correctly. |
+| **Sign-in required**       | Installed, but you are not signed in. Suggests a command, stating the permission it needs.            |
+| **Account mismatch**       | Signed in, but as a different account than the one the workspace expects.                             |
+| **Not applicable**         | Deliberately skipped on this platform.                                                                |
+| **unknown**                | The app could not check this one.                                                                     |
 
 That last one matters. `unknown` is **not** counted as satisfied — a check that
 could not run has established nothing, and treating it as a pass would let a
@@ -506,6 +521,14 @@ name a real folder on **this** machine for each bucket.
 **The step table.** Every action, in order, each marked **Required** or
 **Optional**, each showing its dependencies. A required step runs; an optional
 step runs **unless you switch it off**. Nothing runs until you choose.
+
+Each project with a destination gets a required **file-restore step**
+(`extract-files`) that writes the project's captured files into that folder,
+and any step that inspects or opens the project runs after it. The report tells
+you how many files landed, how many bytes, and whether anything was skipped
+(unsafe names, symlinks, oversized files) or truncated by the size cap. A
+workspace captured before files existed reports *"No files were captured"* and
+restores everything else.
 
 ### Step 4 — Restore and read the report
 
@@ -607,10 +630,10 @@ that fails, it is the network, not this app.
 
 On **each** machine, under the app's own folder:
 
-| Platform | Path |
-|---|---|
-| macOS | `~/Library/Application Support/com.workspaceclone.WorkspaceClone/` |
-| Windows | `%APPDATA%\com.workspaceclone.WorkspaceClone\` |
+| Platform | Path                                                                 |
+| -------- | -------------------------------------------------------------------- |
+| macOS    | `~/Library/Application Support/com.workspaceclone.WorkspaceClone/` |
+| Windows  | `%APPDATA%\com.workspaceclone.WorkspaceClone\`                     |
 
 Inside:
 
@@ -646,7 +669,7 @@ The app makes two different promises, and the **Welcome** screen (the first thin
 you see) lists both. They are worth reading in the app rather than trusting a
 summary, but here they are:
 
-**Never read from your machine at all:**
+**Never read by any capture adapter:**
 
 - Passwords, tokens, cookies, passkeys, recovery codes
 - Private keys, SSH agent state, and the contents of any `.env` file
@@ -655,19 +678,28 @@ summary, but here they are:
 - The OS credential store, where this app keeps its own keys
 - Terminal scrollback, shell history, or command output
 
+(The **file snapshot** is a separate promise, described above in §6: it copies
+the selected projects' *files* — the point of a "clone" — but only what survives
+the denylist: no `.git`, no build output or caches, no `.env` or `.env.*`, no
+`*.pem`/`*.key`/`id_rsa`, no databases or logs, no symlinks, nothing over
+128 MiB, and a hard 512 MiB total. What the snapshot skips is listed in the
+capture's warnings.)
+
 **Recorded as a fact, but its contents never leave the machine:**
 
 - Environment variable **values** — only names are captured
 - **Absolute paths** — replaced with a redacted hint such as `~/code/thing`,
   because your home directory name is not the other machine's business
 - **Credentials in repository remotes**
-- **Uncommitted work** — a dirty git worktree is *reported* as dirty, and the
-  uncommitted source is not copied. A dirty worktree is therefore visible to the
-  person receiving the workspace, which is the point.
+- **A dirty worktree as a git report** — the git adapter records *that* the
+  worktree is dirty, which is what a recipient reads as "the owner had
+  uncommitted work". The *files those changes live in* do travel when file
+  transfer is on, because that is what the recipient needs to do the work.
 
 If you want to check rather than trust: capture a workspace, and the manifest is
-shown on the next screen before it is sealed. It is the actual document that will
-be sent, so you can read exactly what travels.
+shown on the next screen before it is sealed. The sealed manifest and file
+archive are stored on this machine and re-sealed with the receiving machine's
+own key when they arrive there.
 
 ---
 
@@ -809,11 +841,11 @@ build takes minutes; later ones take seconds.
 ### Tests
 
 ```bash
-# Rust — 374 tests
+# Rust — 394 tests
 cd src-tauri
 cargo test --workspace -- --test-threads=2
 
-# Frontend — 84 tests, run once and exit (npm test alone starts a watcher)
+# Frontend — 99 tests, run once and exit (npm test alone starts a watcher)
 npx vitest run
 
 # Type checking
@@ -843,8 +875,7 @@ presents as a hang rather than a failure.
 src-tauri/target/debug/app
 ```
 
-`.cargo/config.toml` at the project root deliberately has **no `[build]
-target`**. It used to pin `build.target = "aarch64-apple-darwin"`, which was
+`.cargo/config.toml` at the project root deliberately has **no `[build] target`**. It used to pin `build.target = "aarch64-apple-darwin"`, which was
 harmless on an Apple silicon Mac and fatal everywhere else: Cargo applies
 `[build] target` to every invocation from anywhere in the repo on any host, so
 `cargo build` on the Windows laptop tried to compile for Apple Silicon and
@@ -859,17 +890,18 @@ in your tree; it is a leftover and will not match current source.
 
 ## 13. The tests, and what each layer covers
 
-| Layer | Count | Covers |
-|---|---|---|
-| `core`, `crypto`, `db`, `preflight`, `restore` units | 153 | pure logic: manifest validation, crypto, repositories, requirement checks |
-| `adapters` units | 62 | capture, detection, path redaction, the safety predicates |
-| `network` units | 68 | handshake, framing, digest, cancellation, discovery and naming |
-| `network/tests/loopback_transfer.rs` | 8 | real TCP, real Noise_IK, two services in one process |
-| `commands` unit tests | 66 | authorization gates, refusals, validation, platform naming, destination resolution |
-| **`commands/tests/two_device_transfer.rs`** | **11** | **the whole two-machine path** |
-| **`adapters/tests/ipc_selection_contract.rs`** | **6** | **TypeScript and Rust agree on field names** |
-| **Total Rust** | **374** | |
-| Frontend (`vitest`) | 84 | routes resolve the URL id; receive UI; IPC wiring; theme + shell; one `<h1>` per route; status bar reads the backend |
+| Layer                                                          | Count         | Covers                                                                                                                |
+| -------------------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `core`, `crypto`, `db`, `preflight`, `restore` units | 159           | pure logic: manifest validation, crypto, repositories, requirement checks, restore execution                            |
+| `files` units                                                | 13            | snapshot denylist + caps, archive round-trips, hostile extraction, the wire envelope                                   |
+| `adapters` units                                             | 62            | capture, detection, path redaction, the safety predicates                                                             |
+| `network` units                                              | 68            | handshake, framing, digest, cancellation, discovery and naming                                                        |
+| `network/tests/loopback_transfer.rs`                         | 8             | real TCP, real Noise_IK, two services in one process                                                                  |
+| `commands` unit tests                                        | 66            | authorization gates, refusals, validation, platform naming, destination resolution                                    |
+| **`commands/tests/two_device_transfer.rs`**            | **12**  | **the whole two-machine path, files included**                                                                 |
+| **`adapters/tests/ipc_selection_contract.rs`**         | **6**   | **TypeScript and Rust agree on field names**                                                                    |
+| **Total Rust**                                           | **394** |                                                                                                                       |
+| Frontend (`vitest`)                                          | 99            | routes resolve the URL id; receive UI; IPC wiring; theme + shell; one`<h1>` per route; status bar reads the backend |
 
 ### `two_device_transfer.rs` is the important one
 
@@ -879,12 +911,14 @@ its own bound listener and its own sealing key, transferring over a real socket
 with a real Noise_IK handshake and the real command-layer receive path.
 
 It covers: a workspace arriving and being readable with the receiving machine's
-key; a manifest with projects and requirements surviving byte-for-byte; an
-unpaired sender refused; a peer trusted only to receive being unable to push; a
-revoked peer refused; one refusal not stopping the next transfer; forwarding
-through a third machine; a silent peer not stalling the listener; the arrival
-shape the window polls for; and the accept loop being startable with no Tokio
-runtime entered.
+key; a manifest with projects and requirements surviving byte-for-byte; a
+workspace carrying its **file archive** arriving, being re-sealed with the
+receiver's key, and extracting the changed file the Mac captured; an unpaired
+sender refused; a peer trusted only to receive being unable to push; a revoked
+peer refused; one refusal not stopping the next transfer; forwarding through a
+third machine; a silent peer not stalling the listener; the arrival shape the
+window polls for; and the accept loop being startable with no Tokio runtime
+entered.
 
 Every one of those tests is a bug that was found and fixed. They are written to
 fail loudly if the behaviour regresses — for example the "sender's key must not
@@ -979,6 +1013,9 @@ MAC                                     WINDOWS
 capture_workspace
   └ manifest built in memory
   └ sealed with the MAC's storage key  → manifests/<id>.json
+  └ when policy.file_transfer is set: project files walked (denylist +
+    size caps), tarred into one archive, sealed with the MAC's key
+      → files/<id>.files.sealed   +  workspace_files row
   └ workspace row written
 
 send_workspace(workspace_id, destination)
@@ -988,6 +1025,7 @@ send_workspace(workspace_id, destination)
   │
   ├─ open the manifest with the MAC's key, re-serialise as JSON
   │     └ NOT the sealed file: sealed with a key the receiver does not have
+  ├─ wrap: MAGIC ‖ len ‖ manifest ‖ (archive if the workspace has one)
   │
   ├─ TCP connect → Noise_IK handshake (authenticated, encrypted)
   ├─ frame: header ‖ SHA-256(payload)
@@ -998,17 +1036,24 @@ send_workspace(workspace_id, destination)
                                               │  own task  ← see §15
                                               ├─ authorise sender: paired,
                                               │  not revoked, has `send`
-                                              ├─ size limit: 32 MiB
+                                              ├─ size limit: 544 MiB
+                                              │  (512 MiB files + headroom)
+                                              ├─ split the envelope: manifest
+                                              │  (+ archive when carried)
                                               ├─ parse + validate()
                                               ├─ workspace id must agree
                                               ├─ capture device must be known
                                               ├─ seal with the WINDOWS key
+                                              │  (manifest and archive)
                                               └─ record + show an arrival
+restore (windows)
+  └ generate_restore_plan: each project with a destination gets an
+    `extract-files-<id>` step, after its map-path step
+  └ execute_restore: the executor opens files/<id>.files.sealed with the
+    WINDOWS key and extracts each project's entries into its mapped folder
 ```
 
-### Why the payload is plaintext JSON inside the channel
-
-This is worth understanding, because the alternative is a silent, late failure.
+### Why the payload is the readable manifest plus its archive, inside the envelope
 
 Sealing is protection **at rest**, and the key that does it is the *device's own*
 storage key. No other machine has it. So transmitting the sealed file would
@@ -1018,8 +1063,21 @@ symptom.
 
 Confidentiality in flight does not need the seal: the Noise channel is
 authenticated and encrypted for its whole duration. So the manifest travels as
-JSON, and the receiver seals it with its own key on arrival. The stored result is
-indistinguishable from a locally captured workspace.
+JSON, and — when the capture included files — so does the file archive, packed
+behind it in a versioned envelope (`WCFB1` magic, u32 manifest length, manifest,
+archive). Payloads without the magic (every transfer made before this feature)
+read back as manifest-only, so old senders still arrive. The receiver seals the
+manifest *and* the archive with its own key on arrival. The stored result is
+indistinguishable from a locally captured workspace, and the archive's byte and
+file counts are recorded next to it so restore can say what a workspace carries.
+
+The file archive is a plain tar, not a zip: no compression, so the side that
+signed the payload can predict its exact size (that is what the caps and the
+announced totals are for), and a deterministic entry order, so equal folders
+produce byte-identical archives. Extraction treats every entry as hostile —
+traversal names, absolute paths, backslashes, drive-letter prefixes, symlinks,
+reserved Windows device names and oversized entries are all refused, and the
+same 512 MiB total cap applies on the way out.
 
 One consequence: `workspaces.manifest_digest` is a digest of the **locally
 sealed** bytes, not of what arrived — the two are different documents. A
@@ -1141,8 +1199,7 @@ Two things depend on this and break silently if it changes:
 - **`capabilities/` must sit next to the build script.** `tauri-build` globs
   `./capabilities/**/*` against the *build script's* directory. When the
   capabilities were in `src-tauri/capabilities/`, the glob matched nothing and
-  the build produced **zero capabilities, silently** — `app/gen/schemas/
-  capabilities.json` was `{}`, so the app shipped declaring no permissions at
+  the build produced **zero capabilities, silently** — `app/gen/schemas/ capabilities.json` was `{}`, so the app shipped declaring no permissions at
   all. Nothing errors on a glob that matches nothing.
 
 Check that generated file after touching this area. An empty `{}` there is a bug,
@@ -1272,3 +1329,5 @@ but not the native frame. **Launch it on a machine where you can see it.**
 
 **Single device per install.** There is no multi-user or shared-installation
 model. Each user has their own app folder and their own keys.
+
+Add this to check if this works

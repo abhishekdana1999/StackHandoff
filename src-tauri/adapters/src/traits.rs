@@ -172,12 +172,18 @@ impl RestoreAction {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum RestoreActionType {
+    /// Open a project's folder in the editor after it has been mapped.
     OpenProject,
     OpenApplication,
     OpenUrls,
     OfferCommand,
     CheckGit,
+    /// Confirm the planner's path mapping (a bookkeeping step, no adapter).
     MapPath,
+    /// Write a project's captured files from the workspace archive into its
+    /// destination folder. Carried out by the executor itself, like [`MapPath`],
+    /// because it needs the archive, which no adapter owns.
+    ExtractFiles,
 }
 
 /// Approved restore action for execution

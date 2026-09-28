@@ -9,6 +9,7 @@ description = "Restore planning and execution for Workspace Clone"
 workspace_clone_core = { path = "../core" }
 workspace_clone_adapters = { path = "../adapters" }
 workspace_clone_db = { path = "../db" }
+workspace_clone_files = { path = "../files" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }

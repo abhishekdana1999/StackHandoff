@@ -464,11 +464,15 @@ export function CaptureScreen() {
                         <li>Environment variable values, tokens, cookies, and private keys</li>
                         <li>Absolute paths, which are replaced with a redacted hint</li>
                         <li>Credentials in repository remotes</li>
-                        <li>Uncommitted work — a dirty worktree is reported, not copied</li>
+                        <li>Uncommitted git state — the .git internals and the index stay
+                            behind; the working-tree files themselves are captured as files</li>
                         <li>Shell history, which is never read at all</li>
                       </ul>
                       <p className="text-sm text-fg-muted mt-2">
-                        This is what you asked to capture. The exact manifest is shown on the next
+                        This is what you asked to capture. Selected project files travel too,
+                        minus the denylist: no .git, no build output or caches, no .env or keys,
+                        no databases or logs, and nothing over the size caps — any skips are
+                        listed in the capture warnings. The exact manifest is shown on the next
                         screen, after it has been built and sealed.
                       </p>
                     </div>

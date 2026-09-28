@@ -7,6 +7,7 @@ use tauri::{command, State};
 use workspace_clone_adapters::LocalContext;
 use workspace_clone_core::manifest::WorkspaceManifest;
 use workspace_clone_core::Result;
+use workspace_clone_db::DbPool;
 use workspace_clone_restore::{
     executor::{RestoreExecutionReport, RestoreExecutor},
     planner::{PlanRequest, RestorePlan, RestorePlanner},
@@ -61,6 +62,7 @@ pub async fn generate_restore_plan(
 #[command]
 pub async fn execute_restore(
     executor: State<'_, Arc<RestoreExecutor>>,
+    pool: State<'_, DbPool>,
     run_id: String,
     plan_json: String,
     approvals_json: Option<String>,
@@ -72,7 +74,14 @@ pub async fn execute_restore(
         .transpose()?
         .unwrap_or_default();
 
-    executor.execute_plan(&run_id, &plan, &approvals).await
+    // The workspace's file archive, when it has one. Loaded here -- the command
+    // layer owns the database and the storage key -- and handed to the executor
+    // as bytes, so the executor never needs either.
+    let files = crate::capture::sealed_files(pool.inner(), &plan.workspace_id).await?;
+
+    executor
+        .execute_plan(&run_id, &plan, &approvals, files.as_deref())
+        .await
 }
 
 /// Summarise a plan for the confirmation screen, without executing anything.

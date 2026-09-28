@@ -143,6 +143,36 @@ impl RestorePlanner {
             insert_unique(&mut actions, action, &mut notes);
         }
 
+        // 1b. Restore the captured files for each project that has a
+        //     destination. These steps write the project's files from the
+        //     workspace archive into the resolved folder, so anything that
+        //     inspects or opens the project must wait for them (that is wired
+        //     through `depend_on_mapping`, which also depends on this step).
+        //     Projects without a destination get no step: files cannot land
+        //     anywhere the user never approved.
+        for project in &manifest.projects {
+            let Some(path) = destinations.get(&project.id) else {
+                continue;
+            };
+            let mut config = serde_json::Map::new();
+            config.insert("project_id".into(), project.id.clone().into());
+            config.insert("workspace_id".into(), manifest.workspace.id.clone().into());
+            config.insert("destination_path".into(), path.to_string_lossy().to_string().into());
+
+            let mut action = RestoreAction::new(
+                format!("extract-files-{}", project.id),
+                RestoreActionType::ExtractFiles,
+                RestoreAction::NO_ADAPTER,
+                format!("Copies the files for {} into {}", project.name, path.display()),
+                serde_json::Value::Object(config),
+            )
+            .required()
+            .approved();
+            action.dependencies.push(format!("map-path-{}", project.id));
+
+            insert_unique(&mut actions, action, &mut notes);
+        }
+
         // 2. Ask the git adapter what verifying each project looks like, using
         //    the manifest's project list as its input rather than a fresh
         //    capture of this machine.
@@ -370,13 +400,23 @@ fn attach_destination(
     }
 }
 
-/// Make an action depend on its project's path mapping.
+/// Make an action depend on its project's path mapping and file extraction.
+///
+/// A project's mapped folder is only the real folder once the captured files
+/// have been written into it, so anything that checks or opens the project must
+/// run after both. The extraction step exists only for projects with a chosen
+/// destination; a dependency on a step that never existed is harmless (the
+/// topological sort treats unknown ids as satisfied) and keeps the rule uniform.
 fn depend_on_mapping(action: &mut RestoreAction, project_id: &str) {
-    let dependency = format!("map-path-{project_id}");
-    if project_id.is_empty() || action.dependencies.contains(&dependency) {
+    if project_id.is_empty() {
         return;
     }
-    action.dependencies.push(dependency);
+    for dependency in [format!("map-path-{project_id}"), format!("extract-files-{project_id}")]
+    {
+        if !action.dependencies.contains(&dependency) {
+            action.dependencies.push(dependency);
+        }
+    }
 }
 
 /// Point an adapter's action at a real local path.
@@ -944,9 +984,27 @@ mod tests {
         let routable: Vec<&RestoreAction> = plan
             .steps
             .iter()
-            .filter(|a| a.action_type != RestoreActionType::MapPath)
+            .filter(|a| {
+                // MapPath and ExtractFiles are carried out by the executor
+                // itself, not by an adapter.
+                !matches!(
+                    a.action_type,
+                    RestoreActionType::MapPath | RestoreActionType::ExtractFiles
+                )
+            })
             .collect();
         assert!(!routable.is_empty(), "expected adapter-backed steps");
+        // ExtractFiles is executor-owned, but it must still carry the fields the
+        // executor needs to run it.
+        let extract = plan
+            .steps
+            .iter()
+            .find(|a| a.action_type == RestoreActionType::ExtractFiles)
+            .expect("a project with a destination must get a file-restore step");
+        assert_eq!(extract.config["project_id"], "p1");
+        assert!(extract.required);
+        assert!(extract.approved);
+        assert!(extract.dependencies.contains(&"map-path-p1".to_string()));
         for action in routable {
             assert!(
                 !action.adapter_id.is_empty(),

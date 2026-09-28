@@ -35,6 +35,13 @@ import type {
  * to false and rejects a manifest claiming otherwise, so starting from anything
  * looser would produce a request the backend silently corrects. Starting strict
  * means the visible value and the effective value are the same.
+ *
+ * `fileTransfer` is the one exception. The point of a workspace clone is that
+ * the *files* come too, and a fresh capture defaulting to `none` would quietly
+ * revert to the manifest-only transfers this feature replaced, no matter what
+ * the screen says. The denylist (`.git`, build output, caches, secrets) and the
+ * size caps are what keep `all` safe; users who deliberately want no files can
+ * still choose it.
  */
 export function emptySelection(): CaptureSelection {
   return {
@@ -45,7 +52,7 @@ export function emptySelection(): CaptureSelection {
     terminalCommands: [],
     envVarNames: [],
     policy: {
-      fileTransfer: 'none',
+      fileTransfer: 'all',
       clipboard: 'excluded',
       automaticCommandExecution: false,
       secretValuesIncluded: false,

@@ -9,7 +9,7 @@ pub mod encryption;
 pub mod keys;
 pub mod noise;
 
-pub use encryption::{open_json, seal_json};
+pub use encryption::{open_bytes, open_json, seal_bytes, seal_json};
 pub use keys::{KeyStorage, TrustStore, TrustedDevice};
 pub use noise::{
     frame_message, safety_number_from_static_keys, FrameParser, KeyPair, NoiseHandshake,

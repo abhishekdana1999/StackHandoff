@@ -53,6 +53,16 @@ pub struct WorkspaceRecord {
     pub status: String,
 }
 
+/// The on-disk sealed file archive backing a workspace's project files.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct WorkspaceFilesRecord {
+    pub workspace_id: String,
+    pub encrypted_files_path: String,
+    pub byte_count: i64,
+    pub file_count: i64,
+    pub archive_format: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct SnapshotRecord {
     pub id: String,

@@ -54,21 +54,25 @@ use workspace_clone_core::{
 };
 use workspace_clone_crypto::keys::KeyStorage;
 use workspace_clone_db::{
-    models::TransferSessionRecord,
-    repository::{DeviceRepository, TransferSessionRepository, WorkspaceRepository},
+    models::{TransferSessionRecord, WorkspaceFilesRecord},
+    repository::{DeviceRepository, TransferSessionRepository, WorkspaceFilesRepository, WorkspaceRepository},
     DbPool,
 };
 use workspace_clone_network::transfer::{ReceivedTransfer, TransferReceiver};
 
 use sha2::{Digest, Sha256};
 
-/// The largest manifest this build will accept from a peer.
+/// The largest payload this build will accept from a peer: the file archive
+/// cap (512 MiB of file contents, shared with the sender's snapshot builder)
+/// plus headroom for the envelope header and the manifest itself.
 ///
 /// A cap on a *received* payload is what stops a peer from filling this
-/// machine's disk. The sender's own limit is the same value, so a workspace that
-/// could not have been sent is not one that can arrive either; the check is
-/// repeated here because the receiver is the side that pays for it.
-pub const MAX_INCOMING_PAYLOAD_BYTES: usize = 32 * 1024 * 1024;
+/// machine's disk. The sender's own limit is the same value (the snapshot
+/// builder stops at `TOTAL_MAX_BYTES`), so a workspace that could not have
+/// been sent is not one that can arrive either; the check is repeated here
+/// because the receiver is the side that pays for it.
+pub const MAX_INCOMING_PAYLOAD_BYTES: usize =
+    workspace_clone_files::TOTAL_MAX_BYTES as usize + 32 * 1024 * 1024;
 
 /// How many arrivals to keep for the UI to show.
 ///
@@ -506,14 +510,31 @@ pub async fn accept_or_refuse(
     if received.payload.len() > MAX_INCOMING_PAYLOAD_BYTES {
         arrival.refusal_reason = Some(format!(
             "The incoming workspace is {} bytes, over this build's {MAX_INCOMING_PAYLOAD_BYTES}-byte \
-             limit for a received manifest. Nothing was stored.",
+             limit for a received workspace. Nothing was stored.",
             received.payload.len()
         ));
         return Ok(arrival);
     }
 
+    // ---- 2b. Split the envelope -------------------------------------------
+    // Payloads that are not enveloped (every transfer made before files
+    // existed) read back as manifest-only; enveloped ones carry the archive
+    // the restore side will need.
+    let (manifest_bytes, incoming_files) = match workspace_clone_files::transit::unwrap(&received.payload)
+    {
+        Ok(workspace_clone_files::transit::Unwrapped::ManifestOnly(m)) => (m, None),
+        Ok(workspace_clone_files::transit::Unwrapped::WithFiles { manifest, files }) => {
+            (manifest, Some(files))
+        }
+        Err(e) => {
+            arrival.refusal_reason =
+                Some(format!("The payload was not a workspace this build can read: {e}"));
+            return Ok(arrival);
+        }
+    };
+
     // ---- 3. Schema and policy ---------------------------------------------
-    let manifest: WorkspaceManifest = match serde_json::from_slice(&received.payload) {
+    let manifest: WorkspaceManifest = match serde_json::from_slice(&manifest_bytes) {
         Ok(manifest) => manifest,
         Err(e) => {
             arrival.refusal_reason =
@@ -599,6 +620,36 @@ pub async fn accept_or_refuse(
             status: "received".to_string(),
         })
         .await?;
+
+    // ---- 5b. Store the files, when the envelope carried an archive ---------
+    //
+    // Sealed with this device's key like the manifest, and recorded with the
+    // same counts a local capture would record, so the restore side cannot tell
+    // (and does not need to tell) whether files arrived or were created here.
+    // A refused or dropped archive must not lose the workspace itself, so a
+    // failure to persist files is a real error, not a warning: the workspace
+    // is in the list but its files would be missing from every restore.
+    if let Some(tar) = incoming_files {
+        let sealed_files = workspace_clone_crypto::seal_bytes(storage_key, &tar)?;
+        let files_path = crate::capture::files_path_for(&manifest.workspace.id)?;
+        std::fs::write(&files_path, &sealed_files).map_err(|e| {
+            workspace_clone_core::DatabaseError::Connection(format!(
+                "The received project files could not be written to {}: {e}",
+                files_path.display()
+            ))
+        })?;
+
+        let (file_count, byte_count) = workspace_clone_files::archive::archive_summary(&tar);
+        WorkspaceFilesRepository::new(pool.clone())
+            .upsert(&WorkspaceFilesRecord {
+                workspace_id: manifest.workspace.id.clone(),
+                encrypted_files_path: files_path.to_string_lossy().to_string(),
+                byte_count: byte_count as i64,
+                file_count: file_count as i64,
+                archive_format: "tar".to_string(),
+            })
+            .await?;
+    }
 
     // ---- 6. Record the transfer -------------------------------------------
     //

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   CheckCircle,
   ChevronRight,
+  FileDown,
   FolderOpen,
   Globe,
   HelpCircle,
@@ -84,6 +85,8 @@ function typeIcon(type: string) {
       return <Terminal className="w-3 h-3" />;
     case 'map_path':
       return <Zap className="w-3 h-3" />;
+    case 'extract_files':
+      return <FileDown className="w-3 h-3" />;
     default:
       return <CheckCircle className="w-3 h-3" />;
   }

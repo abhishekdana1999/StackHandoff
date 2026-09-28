@@ -533,6 +533,59 @@ impl WorkspaceRepository {
     }
 }
 
+/// Repository for the sealed file archive that backs a workspace's files.
+///
+/// One archive per workspace id, matching the manifest's id (a workspace is
+/// immutable, so a re-send of the same id is the same workspace and carries the
+/// newer archive -- the same reasoning as `WorkspaceRepository::upsert`).
+pub struct WorkspaceFilesRepository {
+    pool: DbPool,
+}
+
+impl WorkspaceFilesRepository {
+    pub fn new(pool: DbPool) -> Self {
+        Self { pool }
+    }
+
+    /// Record the sealed archive, replacing an older one for the same
+    /// workspace id (a re-send supersedes the previous copy).
+    pub async fn upsert(&self, record: &WorkspaceFilesRecord) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO workspace_files (workspace_id, encrypted_files_path, byte_count, file_count, archive_format)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(workspace_id) DO UPDATE SET
+                encrypted_files_path = excluded.encrypted_files_path,
+                byte_count = excluded.byte_count,
+                file_count = excluded.file_count,
+                archive_format = excluded.archive_format
+            "#
+        )
+        .bind(&record.workspace_id)
+        .bind(&record.encrypted_files_path)
+        .bind(record.byte_count)
+        .bind(record.file_count)
+        .bind(&record.archive_format)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| DatabaseError::Query(e.to_string()))?;
+
+        Ok(())
+    }
+
+    pub async fn get(&self, workspace_id: &str) -> Result<Option<WorkspaceFilesRecord>> {
+        let row = sqlx::query_as::<_, WorkspaceFilesRecord>(
+            "SELECT * FROM workspace_files WHERE workspace_id = ?",
+        )
+        .bind(workspace_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| DatabaseError::Query(e.to_string()))?;
+
+        Ok(row)
+    }
+}
+
 /// Snapshot repository
 pub struct SnapshotRepository {
     pool: DbPool,

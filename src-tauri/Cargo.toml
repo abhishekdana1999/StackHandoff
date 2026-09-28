@@ -9,6 +9,7 @@ members = [
     "preflight",
     "restore",
     "commands",
+    "files",
     "app",
 ]
 
@@ -60,3 +61,4 @@ keyring = "4"
 directories = "5.0"
 hkdf = "0.12"
 aes-gcm = "0.10"
+tar = "0.4"

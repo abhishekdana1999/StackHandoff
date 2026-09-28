@@ -31,6 +31,25 @@ pub fn open_json<T: serde::de::DeserializeOwned>(key: &EncryptionKey, sealed: &s
 /// replayed into a different context.
 const SEALED_MANIFEST_AAD: &[u8] = b"workspace-clone-manifest/v1";
 
+/// Associated data bound to every sealed file archive, distinct from the
+/// manifest AAD so a ciphertext saved for one purpose cannot be swapped into
+/// the other.
+const SEALED_FILES_AAD: &[u8] = b"workspace-clone-files/v1";
+
+/// Encrypt arbitrary bytes (a file archive) and return the storable sealed
+/// blob, mirroring [`seal_json`] but for data with no JSON form.
+pub fn seal_bytes(key: &EncryptionKey, plaintext: &[u8]) -> Result<Vec<u8>> {
+    let payload = encrypt(key, plaintext, SEALED_FILES_AAD)?;
+    Ok(serde_json::to_vec(&payload)?)
+}
+
+/// Reverse of [`seal_bytes`].
+pub fn open_bytes(key: &EncryptionKey, sealed: &[u8]) -> Result<Vec<u8>> {
+    let payload: EncryptedPayload = serde_json::from_slice(sealed)
+        .map_err(|e| WorkspaceError::Crypto(CryptoError::Decryption(e.to_string())))?;
+    decrypt(key, &payload, SEALED_FILES_AAD)
+}
+
 use workspace_clone_core::CryptoError;
 
 #[cfg(test)]
@@ -59,5 +78,17 @@ mod tests {
         let sealed = seal_json(&key, &serde_json::json!({ "a": 1 })).unwrap();
 
         assert!(open_json::<serde_json::Value>(&other, &sealed).is_err());
+    }
+
+    #[test]
+    fn sealed_bytes_round_trip_and_refuse_wrong_key() {
+        let key = EncryptionKey::new([7u8; 32]);
+        let other = EncryptionKey::new([8u8; 32]);
+        let blob = b"tar bytes that are not json".to_vec();
+
+        let sealed = seal_bytes(&key, &blob).unwrap();
+        assert_ne!(sealed, blob, "sealed bytes must not be the plaintext");
+        assert_eq!(open_bytes(&key, &sealed).unwrap(), blob);
+        assert!(open_bytes(&other, &sealed).is_err());
     }
 }

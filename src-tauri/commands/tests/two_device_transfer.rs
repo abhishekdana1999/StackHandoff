@@ -48,7 +48,8 @@ use workspace_clone_crypto::noise::KeyPair;
 use workspace_clone_db::{
     models::DeviceRecord,
     repository::{
-        init_db_at, DeviceRepository, TransferSessionRepository, WorkspaceRepository,
+        init_db_at, DeviceRepository, TransferSessionRepository, WorkspaceFilesRepository,
+        WorkspaceRepository,
     },
     DbPool,
 };
@@ -366,6 +367,108 @@ async fn a_workspace_sent_from_one_machine_is_stored_and_readable_on_the_other()
     assert_eq!(history[0].progress, 1.0);
 
     remove_manifest(&workspace_id);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_workspace_with_files_arrives_with_its_archive_and_restores() {
+    // The user's actual story: a file changed on the Mac, a workspace was
+    // captured carrying it, and the Windows side must receive that file and be
+    // able to write it out on restore.
+    let mac = Machine::new("mac-files").await;
+    let windows = Machine::new("windows-files").await;
+    mac.trust(&windows, vec![TrustScope::ReceiveWorkspaces]).await;
+    windows.trust(&mac, vec![TrustScope::SendWorkspaces]).await;
+    windows.start_accepting();
+
+    let workspace_id = unique_id("files");
+    let manifest = manifest_for(&workspace_id, "Project With Files", &mac);
+    let manifest_bytes = serde_json::to_vec(&manifest).unwrap();
+
+    // A project folder with a file that "changed" (its content is the payload).
+    let source = std::env::temp_dir().join(format!(
+        "wc-e2e-src-{}-{}",
+        std::process::id(),
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    ));
+    let dest = std::env::temp_dir().join(format!(
+        "wc-e2e-dest-{}-{}",
+        std::process::id(),
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    ));
+    std::fs::create_dir_all(source.join("src")).unwrap();
+    std::fs::write(source.join("src/note.txt"), "the file change from the Mac\n").unwrap();
+
+    let built = workspace_clone_files::snapshot::build_archive(
+        &[("proj-1".to_string(), source.clone())],
+        Default::default(),
+    )
+    .expect("the snapshot should build");
+    assert!(built.file_count >= 1, "the snapshot must carry the changed file");
+
+    let payload = workspace_clone_files::transit::wrap(&manifest_bytes, Some(&built.tar))
+        .expect("the envelope should wrap");
+
+    let session = send(&mac, &windows, &workspace_id, payload.clone()).await;
+    assert_eq!(
+        session.status,
+        TransferStatus::Completed,
+        "the file-carrying send should complete: {:?}",
+        session.error
+    );
+
+    let arrival = windows
+        .wait_for_arrival(Duration::from_secs(5))
+        .await
+        .expect("an arrival should be reported");
+    assert!(
+        arrival.accepted,
+        "the arrival was refused: {:?}",
+        arrival.refusal_reason
+    );
+
+    // The archive is recorded on the receiving machine, sealed with *its* key.
+    let record = WorkspaceFilesRepository::new(windows.pool.clone())
+        .get(&workspace_id)
+        .await
+        .expect("the lookup should run")
+        .expect("the receiving machine must record the incoming archive");
+    assert!(record.file_count >= 1);
+    assert!(record.byte_count >= built.byte_count as i64);
+
+    let sealed = std::fs::read(&record.encrypted_files_path).expect("the sealed archive file");
+    let opened = workspace_clone_crypto::open_bytes(&windows.storage_key, &sealed)
+        .expect("the receiving machine's key must open the archive it stored");
+    assert_eq!(
+        opened, built.tar,
+        "the archive must arrive byte-for-byte identical"
+    );
+    assert!(
+        workspace_clone_crypto::open_bytes(&mac.storage_key, &sealed).is_err(),
+        "the sender's key must not open the archive sealed on the receiving machine"
+    );
+
+    // Restore: the archive is written into the destination, and the changed
+    // file has exactly the content it had on the Mac.
+    let report = workspace_clone_files::archive::extract_project(
+        &opened,
+        "proj-1",
+        &dest,
+        Default::default(),
+    )
+    .expect("the extraction should run");
+    assert!(report.files_written >= 1);
+    assert_eq!(
+        std::fs::read_to_string(dest.join("src/note.txt")).unwrap(),
+        "the file change from the Mac\n",
+        "the restored file must carry the Mac's change"
+    );
+
+    remove_manifest(&workspace_id);
+    if let Ok(files_path) = workspace_clone_commands::capture::files_path_for(&workspace_id) {
+        let _ = std::fs::remove_file(files_path);
+    }
+    let _ = std::fs::remove_dir_all(&source);
+    let _ = std::fs::remove_dir_all(&dest);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

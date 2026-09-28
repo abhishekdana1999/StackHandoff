@@ -13,6 +13,7 @@ workspace_clone_network = { path = "../network" }
 workspace_clone_adapters = { path = "../adapters" }
 workspace_clone_preflight = { path = "../preflight" }
 workspace_clone_restore = { path = "../restore" }
+workspace_clone_files = { path = "../files" }
 tauri = { workspace = true }
 tokio = { workspace = true }
 anyhow = { workspace = true }

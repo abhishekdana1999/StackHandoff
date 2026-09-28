@@ -56,11 +56,17 @@ impl RestoreExecutor {
     /// map falls back to the planner's default, which is approved for
     /// information-gathering steps and declined for anything that opens a
     /// window.
+    ///
+    /// `files` is the workspace's file archive (tar bytes) when the workspace
+    /// carries files, and `None` for manifest-only workspaces. It is supplied by
+    /// the command layer, which owns the database and the storage key; the
+    /// executor only ever sees the bytes.
     pub async fn execute_plan(
         &self,
         run_id: &str,
         plan: &crate::planner::RestorePlan,
         approvals: &std::collections::HashMap<String, bool>,
+        files: Option<&[u8]>,
     ) -> Result<RestoreExecutionReport> {
         info!("Executing restore plan with {} steps", plan.steps.len());
 
@@ -109,7 +115,7 @@ impl RestoreExecutor {
                 continue;
             }
 
-            let result = self.execute_action(action).await;
+            let result = self.execute_action(action, files).await;
             let failed = matches!(result.status, ActionStatus::Failed);
 
             if failed && action.required {
@@ -137,7 +143,11 @@ impl RestoreExecutor {
     }
 
     /// Carry out one step.
-    async fn execute_action(&self, action: &workspace_clone_adapters::RestoreAction) -> ActionResult {
+    async fn execute_action(
+        &self,
+        action: &workspace_clone_adapters::RestoreAction,
+        files: Option<&[u8]>,
+    ) -> ActionResult {
         let start = std::time::Instant::now();
 
         // Path mapping is bookkeeping, not work: the planner has already done
@@ -145,6 +155,12 @@ impl RestoreExecutor {
         // out of the adapter routing below, where it has no adapter to reach.
         if action.action_type == RestoreActionType::MapPath {
             return map_path_result(action, start.elapsed());
+        }
+
+        // File extraction is the executor's own work too: it needs the archive
+        // bytes the command layer supplied, which no adapter owns.
+        if action.action_type == RestoreActionType::ExtractFiles {
+            return extract_files_result(action, files, start.elapsed());
         }
 
         let approved_action = ApprovedRestoreAction {
@@ -272,9 +288,11 @@ fn map_path_result(
     let (status, message) = if path.is_dir() {
         (ActionStatus::Success, format!("{destination} is ready"))
     } else {
+        // The file-restore step later in the run creates the folder when the
+        // workspace carries files; without files this stays a manual step.
         (
             ActionStatus::Manual,
-            format!("{destination} does not exist yet. Get the code there, then re-run restore."),
+            format!("{destination} does not exist yet. The file step will create it when this workspace has files; otherwise clone the code there, then re-run restore."),
         )
     };
 
@@ -284,6 +302,124 @@ fn map_path_result(
         message,
         duration_ms: duration.as_millis() as u64,
         details: Some(serde_json::json!({ "destination_path": destination }).to_string()),
+    }
+}
+
+/// Write a project's captured files from the workspace archive into its
+/// destination folder.
+///
+/// Safe by construction: `workspace_clone_files::archive::extract_project`
+/// refuses traversal names, absolute paths, symlinks, reserved names and
+/// oversized entries, and caps the total. A workspace without files reports an
+/// honest success ("nothing was captured") so this required step never blocks
+/// the rest of the run.
+fn extract_files_result(
+    action: &workspace_clone_adapters::RestoreAction,
+    files: Option<&[u8]>,
+    duration: Duration,
+) -> ActionResult {
+    let human_bytes = |b: u64| {
+        if b >= 1024 * 1024 {
+            format!("{:.1} MB", b as f64 / (1024.0 * 1024.0))
+        } else if b >= 1024 {
+            format!("{:.1} KB", b as f64 / 1024.0)
+        } else {
+            format!("{b} B")
+        }
+    };
+
+    let destination = action
+        .config
+        .get("destination_path")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    let project_id = action
+        .config
+        .get("project_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+
+    if destination.is_empty() || project_id.is_empty() {
+        return ActionResult {
+            action_id: action.id.clone(),
+            status: ActionStatus::Failed,
+            message: format!("{} could not run: it has no project or destination", action.id),
+            duration_ms: duration.as_millis() as u64,
+            details: None,
+        };
+    }
+
+    let Some(tar) = files else {
+        return ActionResult {
+            action_id: action.id.clone(),
+            status: ActionStatus::Success,
+            message: "No files were captured for this workspace, so there is nothing to restore".to_string(),
+            duration_ms: duration.as_millis() as u64,
+            details: Some(
+                serde_json::json!({ "files_written": 0, "destination_path": destination }).to_string(),
+            ),
+        };
+    };
+
+    if tar.is_empty() {
+        return ActionResult {
+            action_id: action.id.clone(),
+            status: ActionStatus::Success,
+            message: "The workspace archive is empty, so nothing was restored".to_string(),
+            duration_ms: duration.as_millis() as u64,
+            details: Some(
+                serde_json::json!({ "files_written": 0, "destination_path": destination }).to_string(),
+            ),
+        };
+    }
+
+    let dest_path = std::path::Path::new(&destination);
+    match workspace_clone_files::archive::extract_project(tar, &project_id, dest_path, Default::default()) {
+        Ok(report) => {
+            let truncated = if report.overflow {
+                " The total size limit was reached, so some files were left out; the rest were restored."
+            } else {
+                ""
+            };
+            let refused = if report.refused.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " {} entry/entries were refused (unsafe names, symlinks or oversized files) and skipped.",
+                    report.refused.len()
+                )
+            };
+            ActionResult {
+                action_id: action.id.clone(),
+                status: ActionStatus::Success,
+                message: format!(
+                    "Restored {} file(s), {} in total{}{}",
+                    report.files_written,
+                    human_bytes(report.bytes_written),
+                    truncated,
+                    refused
+                ),
+                duration_ms: duration.as_millis() as u64,
+                details: Some(
+                    serde_json::json!({
+                        "files_written": report.files_written,
+                        "bytes_written": report.bytes_written,
+                        "dirs_created": report.dirs_created,
+                        "destination_path": destination,
+                    })
+                    .to_string(),
+                ),
+            }
+        }
+        Err(e) => ActionResult {
+            action_id: action.id.clone(),
+            status: ActionStatus::Failed,
+            message: format!("Could not restore files to {destination}: {e}"),
+            duration_ms: duration.as_millis() as u64,
+            details: None,
+        },
     }
 }
 
@@ -436,7 +572,7 @@ mod tests {
             ..action("map-path-p1", "", true, true)
         }]);
 
-        let report = executor().execute_plan("run-1", &plan, &Default::default()).await.unwrap();
+        let report = executor().execute_plan("run-1", &plan, &Default::default(), None).await.unwrap();
 
         assert_eq!(report.results.len(), 1);
         assert_eq!(report.results[0].status, ActionStatus::Success);
@@ -451,7 +587,7 @@ mod tests {
             ..action("map-path-p1", "", true, true)
         }]);
 
-        let report = executor().execute_plan("run-1", &plan, &Default::default()).await.unwrap();
+        let report = executor().execute_plan("run-1", &plan, &Default::default(), None).await.unwrap();
 
         assert_eq!(report.results[0].status, ActionStatus::Manual);
         assert!(report.is_successful(), "a manual step is not a failure");
@@ -466,7 +602,7 @@ mod tests {
             ..action("map-path-p1", "", true, true)
         }]);
 
-        let report = executor().execute_plan("run-1", &plan, &Default::default()).await.unwrap();
+        let report = executor().execute_plan("run-1", &plan, &Default::default(), None).await.unwrap();
 
         assert_eq!(report.results[0].status, ActionStatus::Manual);
         assert!(report.results[0].message.contains("no destination folder chosen"));
@@ -478,7 +614,7 @@ mod tests {
         // indication of what to do.
         let plan = plan(vec![action("open-1", "no-such-adapter", true, false)]);
 
-        let report = executor().execute_plan("run-1", &plan, &Default::default()).await.unwrap();
+        let report = executor().execute_plan("run-1", &plan, &Default::default(), None).await.unwrap();
 
         assert_eq!(report.results[0].status, ActionStatus::Failed);
         assert!(
@@ -494,7 +630,7 @@ mod tests {
     async fn an_unapproved_optional_step_is_skipped() {
         let plan = plan(vec![action("open-1", "vscode", false, false)]);
 
-        let report = executor().execute_plan("run-1", &plan, &Default::default()).await.unwrap();
+        let report = executor().execute_plan("run-1", &plan, &Default::default(), None).await.unwrap();
 
         assert_eq!(report.results[0].status, ActionStatus::Skipped);
         assert_eq!(report.skipped_count(), 1);
@@ -506,7 +642,7 @@ mod tests {
         let plan = plan(vec![action("open-1", "no-such-adapter", false, false)]);
         let approvals = [("open-1".to_string(), true)].into_iter().collect();
 
-        let report = executor().execute_plan("run-1", &plan, &approvals).await.unwrap();
+        let report = executor().execute_plan("run-1", &plan, &approvals, None).await.unwrap();
 
         // Approved, so it runs -- and fails, because the adapter is absent.
         assert_eq!(report.results[0].status, ActionStatus::Failed);
@@ -522,7 +658,7 @@ mod tests {
             action("third", "no-such-adapter", true, true),
         ]);
 
-        let report = executor().execute_plan("run-1", &plan, &Default::default()).await.unwrap();
+        let report = executor().execute_plan("run-1", &plan, &Default::default(), None).await.unwrap();
 
         assert_eq!(report.results.len(), 3, "every step must be accounted for");
         assert_eq!(report.results[0].status, ActionStatus::Failed);
@@ -544,7 +680,7 @@ mod tests {
             action("also-optional", "no-such-adapter", true, false),
         ]);
 
-        let report = executor().execute_plan("run-1", &plan, &Default::default()).await.unwrap();
+        let report = executor().execute_plan("run-1", &plan, &Default::default(), None).await.unwrap();
 
         assert_eq!(report.failed_count(), 2, "both steps should have been attempted");
     }
@@ -556,7 +692,7 @@ mod tests {
             action("after", "vscode", true, false),
         ]);
 
-        let report = executor().execute_plan("run-1", &plan, &Default::default()).await.unwrap();
+        let report = executor().execute_plan("run-1", &plan, &Default::default(), None).await.unwrap();
 
         assert_eq!(report.results[0].status, ActionStatus::Skipped);
         assert!(report.results[0].message.contains("required step"));
@@ -567,7 +703,7 @@ mod tests {
     #[tokio::test]
     async fn an_empty_plan_succeeds_trivially() {
         let report = executor()
-            .execute_plan("run-1", &plan(vec![]), &Default::default())
+            .execute_plan("run-1", &plan(vec![]), &Default::default(), None)
             .await
             .unwrap();
 
@@ -613,7 +749,7 @@ mod tests {
         let mut plan = plan(vec![]);
         plan.notes = vec!["The 'zed' section could not be read.".into()];
 
-        let report = executor().execute_plan("run-1", &plan, &Default::default()).await.unwrap();
+        let report = executor().execute_plan("run-1", &plan, &Default::default(), None).await.unwrap();
 
         assert_eq!(report.notes, plan.notes);
     }
@@ -636,5 +772,68 @@ mod tests {
     async fn a_manifest_with_no_steps_still_produces_a_run() {
         let manifest = WorkspaceManifest::default();
         assert!(manifest.projects.is_empty());
+    }
+
+    fn extract_action(project_id: &str, destination: &std::path::Path) -> RestoreAction {
+        RestoreAction {
+            action_type: RestoreActionType::ExtractFiles,
+            config: serde_json::json!({
+                "project_id": project_id,
+                "workspace_id": "ws-1",
+                "destination_path": destination.to_string_lossy(),
+            }),
+            ..action(&format!("extract-files-{project_id}"), "", true, true)
+        }
+    }
+
+    #[tokio::test]
+    async fn extract_files_writes_the_archive_into_the_destination() {
+        use workspace_clone_files::snapshot::build_archive;
+        let source = std::env::temp_dir().join(format!("wc-x-src-{}", std::process::id()));
+        let dest = std::env::temp_dir().join(format!("wc-x-dest-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&source);
+        let _ = std::fs::remove_dir_all(&dest);
+        std::fs::create_dir_all(source.join("lib")).unwrap();
+        std::fs::write(source.join("lib/mod.rs"), b"pub fn go() {}\n").unwrap();
+        std::fs::write(source.join("README.md"), b"readme\n").unwrap();
+
+        let built = build_archive(&[("p1".into(), source.clone())], Default::default()).unwrap();
+        let plan = plan(vec![extract_action("p1", &dest)]);
+
+        let report = executor()
+            .execute_plan("run-1", &plan, &Default::default(), Some(&built.tar))
+            .await
+            .unwrap();
+
+        assert_eq!(report.results.len(), 1);
+        assert_eq!(report.results[0].status, ActionStatus::Success);
+        assert_eq!(
+            std::fs::read_to_string(dest.join("lib/mod.rs")).unwrap(),
+            "pub fn go() {}\n",
+            "the captured file content must land on disk"
+        );
+        assert_eq!(std::fs::read_to_string(dest.join("README.md")).unwrap(), "readme\n");
+
+        let _ = std::fs::remove_dir_all(&source);
+        let _ = std::fs::remove_dir_all(&dest);
+    }
+
+    #[tokio::test]
+    async fn extract_files_without_an_archive_reports_nothing_to_restore() {
+        let dest = std::env::temp_dir().join(format!("wc-x-none-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dest);
+        let plan = plan(vec![extract_action("p1", &dest)]);
+
+        // Manifest-only workspace: no archive exists, and the required step must
+        // still succeed rather than blocking the rest of the run.
+        let report = executor()
+            .execute_plan("run-1", &plan, &Default::default(), None)
+            .await
+            .unwrap();
+
+        assert_eq!(report.results[0].status, ActionStatus::Success);
+        assert!(report.is_successful());
+        assert!(!dest.exists(), "nothing should be created for a file-less workspace");
+        let _ = std::fs::remove_dir_all(&dest);
     }
 }

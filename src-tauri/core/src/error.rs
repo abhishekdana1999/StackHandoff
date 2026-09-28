@@ -57,6 +57,9 @@ pub enum WorkspaceError {
 
     #[error("Not implemented: {0}")]
     NotImplemented(String),
+
+    #[error("File transfer failed: {0}")]
+    Files(String),
 }
 
 impl serde::Serialize for WorkspaceError {

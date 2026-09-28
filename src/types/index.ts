@@ -58,7 +58,8 @@ export type RestoreActionType =
   | 'open_urls'
   | 'offer_command'
   | 'check_git'
-  | 'map_path';
+  | 'map_path'
+  | 'extract_files';
 
 export type ActionType = 'open_url' | 'run_command' | 'install_app' | 'configure_setting';
 
@@ -330,9 +331,12 @@ export interface GitInfo {
   commit: string | null;
   dirty_worktree: boolean;
   /**
-   * Always false in practice. It exists so the manifest can state that the
-   * uncommitted work itself was not captured, rather than leaving the reader to
-   * assume a dirty worktree came along.
+   * Always false. What never travels is git's *internal* representation of
+   * uncommitted work — staged and unstaged deltas, the index, anything under
+   * `.git` — which the file snapshot's denylist excludes by design. The
+   * working-tree files the changes live in *are* captured. This flag lets the
+   * manifest state that the dirty *state* did not travel, rather than leaving
+   * the reader to assume it did.
    */
   dirty_state_captured: boolean;
 }

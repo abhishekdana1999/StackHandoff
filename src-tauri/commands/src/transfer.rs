@@ -484,7 +484,8 @@ pub async fn send_workspace(
     // completes a handshake could be handed a workspace.
     authorize_destination(pool.inner(), &destination_device_id).await?;
 
-    // The payload is the manifest as JSON, not the sealed file.
+    // The payload is the manifest plus its file archive, in the wire envelope
+    // -- not the sealed files.
     //
     // It used to be the sealed file, which cannot work: the sealed form is
     // encrypted with the *sending* device's own storage key, and no other
@@ -493,8 +494,9 @@ pub async fn send_workspace(
     // restore, with no error explaining why. Sealing is protection at rest; the
     // Noise transport already authenticates and encrypts the whole session, so
     // nothing is exposed by sending the readable form, and the receiver seals it
-    // again with its own key on arrival.
-    let payload = manifest_payload(pool.inner(), &workspace_id).await?;
+    // again with its own key on arrival. The same holds for the file archive:
+    // the receiver seals it with its own key when it stores it.
+    let payload = transfer_payload(pool.inner(), &workspace_id).await?;
 
     // The peer itself, resolved from discovery *before* the transfer lock below is
     // taken, so the two locks are never held at once. The transfer lock is held
@@ -656,19 +658,22 @@ async fn authorize_destination(pool: &DbPool, destination_device_id: &str) -> Re
     Ok(())
 }
 
-/// The manifest to put on the wire, as JSON.
+/// The transport payload for a send: the manifest plus the file archive, in
+/// the envelope format.
 ///
-/// A *copy* of the stored manifest, re-serialised rather than the file read
-/// verbatim. Two reasons, and the second is the important one:
+/// The manifest is a *copy* of the stored manifest, re-serialised rather than
+/// the file read verbatim. Two reasons, and the second is the important one:
 ///
 /// * the file is the sender's sealed bytes, which no peer can open; and
 /// * the digest the transport announces covers exactly these bytes, and the
 ///   receiver hashes what it received. A payload the sender hashed differently
 ///   would be reported as a digest mismatch -- so "the same bytes" is a
 ///   requirement of the protocol, not a nicety.
-async fn manifest_payload(pool: &DbPool, workspace_id: &str) -> Result<Vec<u8>> {
+async fn transfer_payload(pool: &DbPool, workspace_id: &str) -> Result<Vec<u8>> {
     let manifest = crate::capture::read_manifest(pool, workspace_id).await?;
-    Ok(serde_json::to_vec(&manifest)?)
+    let manifest_bytes = serde_json::to_vec(&manifest)?;
+    let files = crate::capture::sealed_files(pool, workspace_id).await?;
+    workspace_clone_files::transit::wrap(&manifest_bytes, files.as_deref())
 }
 
 /// This device's own row, for the `source_device_id` a transfer is recorded against.

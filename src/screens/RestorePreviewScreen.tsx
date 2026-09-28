@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
+  FileDown,
   FolderOpen,
   Globe,
   Key,
@@ -39,6 +40,8 @@ function typeIcon(type: RestoreActionType) {
       return <Key className="w-4 h-4 flex-shrink-0" />;
     case 'map_path':
       return <Zap className="w-4 h-4 flex-shrink-0" />;
+    case 'extract_files':
+      return <FileDown className="w-4 h-4 flex-shrink-0" />;
     default:
       return <Shield className="w-4 h-4 flex-shrink-0" />;
   }
@@ -56,7 +59,8 @@ function isExecutionStep(step: RestoreAction): boolean {
     step.action_type === 'offer_command' ||
     step.action_type === 'open_project' ||
     step.action_type === 'open_application' ||
-    step.action_type === 'open_urls'
+    step.action_type === 'open_urls' ||
+    step.action_type === 'extract_files'
   );
 }
 
