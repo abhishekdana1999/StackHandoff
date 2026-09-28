@@ -1,0 +1,73 @@
+# Builds a shareable Windows installer.
+#
+# Why this exists rather than a cross-compile on the Mac: Tauri's Windows build
+# needs the MSVC toolchain and the Windows SDK, and while `cargo-xwin` can
+# fetch those to *compile* the Rust, `tauri build` additionally bundles with
+# NSIS and runs Windows tooling. Cross-building a Tauri app to Windows from
+# macOS is not supported. The supported path is a Windows machine, and
+# GitHub Actions is the cheapest one that does not need to be the laptop.
+#
+# This workflow is written but has NEVER RUN -- it was authored on a machine
+# with no access to github.com, so the first execution is unverified. The
+# `Windows build works` claim in the tracker is deliberately *not* made.
+
+name: Windows installer
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  windows:
+    # windows-latest already has the Visual Studio build tools, the Windows SDK
+    # and the WebView2 runtime, which is everything a Tauri Windows build needs.
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # The Rust workspace is not at the repo root, so the default cache
+          # paths would miss it entirely and every run would rebuild from zero.
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # `tauri.conf.json` is not at the repo root or in src-tauri/; it sits
+      # beside src-tauri/app/Cargo.toml (see DEC-017). tauri-action searches
+      # ./tauri.conf.json and ./src-tauri/tauri.conf.json by default and would
+      # find neither, so the path has to be given explicitly.
+      - name: Build the Windows installer
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: .
+          tauriConfPath: src-tauri/app/tauri.conf.json
+          # `bundle.targets` is "all" in the config, which on Windows produces
+          # both the NSIS .exe installer and an .msi. Either is shareable; the
+          # .exe needs no admin rights to install.
+          args: --target x86_64-pc-windows-msvc
+
+      # Upload the artifacts directly, so a run can be used even before anyone
+      # has cut a release tag.
+      - name: Upload the installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-clone-windows
+          if-no-files-found: error
+          path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsi/*.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi

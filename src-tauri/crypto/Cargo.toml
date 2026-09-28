@@ -1,0 +1,30 @@
+[package]
+name = "workspace_clone_crypto"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Cryptographic operations for Workspace Clone"
+
+[dependencies]
+workspace_clone_core = { path = "../core" }
+snow = { workspace = true }
+x25519-dalek = { workspace = true }
+ed25519-dalek = { workspace = true }
+aes-gcm = "0.10"
+hkdf = "0.12"
+sha2 = "0.10"
+rand = { workspace = true }
+rand_core = { workspace = true }
+zeroize = { workspace = true }
+secrecy = { workspace = true }
+base64 = { workspace = true }
+hex = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+bytes = { workspace = true }
+tokio = { workspace = true }
+keyring = { workspace = true }
+directories = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }

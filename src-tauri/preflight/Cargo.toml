@@ -1,0 +1,24 @@
+[package]
+name = "workspace_clone_preflight"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Preflight engine for Workspace Clone"
+
+[dependencies]
+workspace_clone_core = { path = "../core" }
+workspace_clone_adapters = { path = "../adapters" }
+workspace_clone_db = { path = "../db" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+which = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

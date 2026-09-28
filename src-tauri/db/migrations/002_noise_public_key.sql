@@ -1,0 +1,11 @@
+-- The Noise static key a paired device answers a handshake with.
+--
+-- It could not be derived from `public_key`: that column holds the Ed25519
+-- identity key, used for signing and display, while the transport authenticates
+-- against a separate X25519 key. Storing one and not the other means a paired
+-- device can be named but never connected to, which is what happened before
+-- this column existed.
+--
+-- Nullable with an empty default so a device paired by an older build still
+-- loads; it is simply not connectable, and the transfer layer says so.
+ALTER TABLE devices ADD COLUMN noise_public_key TEXT NOT NULL DEFAULT '';

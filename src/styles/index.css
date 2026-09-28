@@ -1,0 +1,355 @@
+/*
+ * Workspace Clone — design tokens
+ *
+ * Provenance: the spacing scale, type scale, radii and elevation ladder come from
+ * a Stitch design system (project 16363674835719666940) briefed for a dense
+ * macOS developer tool. The COLOURS are hand-corrected, because the palette
+ * Stitch generated from that brief was a Material 3 *tonal* scheme: surfaces
+ * tinted blue (#dce9ff, #cbdbf5) and a green `secondary` plus a brown
+ * `tertiary`. Both are wrong here, for reasons that are functional rather than
+ * aesthetic:
+ *
+ *   - Green / amber / red are already spoken for. They mean "ready", "needs you"
+ *     and "failed" in the preflight and restore step lists. Spending them on
+ *     decoration would make the status colours ambiguous, so this system keeps
+ *     the accent indigo and reserves the rest.
+ *   - Blue-tinted surfaces read as a web app. A macOS window recedes with cool
+ *     *neutral* greys.
+ *
+ * Both modes are first-class. Light is not derived from dark by inversion; each
+ * has its own surface and text ladder, with the same number of tiers, so the two
+ * read as one app.
+ *
+ * Every colour is stored as bare HSL channels so that `hsl(var(--token) / <alpha>)`
+ * works and Tailwind opacity modifiers (`bg-primary/90`) stay usable.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+
+    /* --- surfaces: a five-step ladder, light mode ------------------ */
+    --surface-sunken: 220 21% 94%; /* sidebar, recessed wells      */
+    --surface-canvas: 220 33% 98%; /* the window background itself */
+    --surface: 0 0% 100%; /* cards, list rows — raised       */
+    --surface-overlay: 0 0% 100%; /* popovers, dialogs             */
+    --surface-hover: 220 20% 96%;
+    --surface-active: 220 18% 92%;
+
+    /* --- text: four tiers ---------------------------------------- */
+    --foreground: 222 30% 12%;
+    --fg-muted: 220 12% 40%;
+    --fg-subtle: 220 10% 52%;
+    --fg-faint: 220 10% 66%;
+
+    /* --- lines --------------------------------------------------- */
+    --border: 220 18% 89%;
+    --hairline: 220 16% 78%;
+
+    /* --- accent: indigo, deliberately clear of every status hue -- */
+    --primary: 243 75% 59%; /* #4f46e5 — 6.3:1 on white       */
+    --primary-hover: 243 72% 51%;
+    --primary-foreground: 0 0% 100%;
+    --primary-soft: 243 100% 97%; /* a tinted fill, not a solid  */
+    --primary-soft-border: 243 60% 88%;
+    --ring: 243 75% 59%;
+
+    /* --- status families ------------------------------------------
+     * Each has a text colour that clears 4.5:1 on its own background, a
+     * faint fill for chips, and a border. `neutral` is the "we could not
+     * determine this" colour and is deliberately not a status.
+     */
+    --success-fg: 152 62% 27%;
+    --success-bg: 152 60% 95%;
+    --success-border: 152 45% 80%;
+
+    --warning-fg: 30 88% 28%;
+    --warning-bg: 40 95% 94%;
+    --warning-border: 36 80% 78%;
+
+    --danger-fg: 0 68% 40%;
+    --danger-bg: 0 86% 97%;
+    --danger-border: 0 65% 88%;
+
+    --neutral-fg: 220 12% 38%;
+    --neutral-bg: 220 20% 95%;
+    --neutral-border: 220 16% 85%;
+
+    /* --- shadcn-compatible aliases --------------------------------
+     * Every screen in the app styles itself with these names. They are
+     * retained so the existing markup keeps working against the new palette
+     * instead of needing a rewrite; new code should prefer the names above.
+     */
+    --background: var(--surface-canvas);
+    --foreground-legacy: var(--foreground);
+    --card: var(--surface);
+    --card-foreground: var(--foreground);
+    --popover: var(--surface-overlay);
+    --popover-foreground: var(--foreground);
+    --primary-foreground-legacy: var(--primary-foreground);
+    --secondary: var(--surface-hover);
+    --secondary-foreground: var(--foreground);
+    --muted: var(--surface-hover);
+    --muted-foreground: var(--fg-muted);
+    --accent: var(--surface-hover);
+    --accent-foreground: var(--foreground);
+    --destructive: var(--danger-fg);
+    --destructive-foreground: 0 0% 100%;
+    --input: var(--hairline);
+
+    /* 4px base. Never pill-shaped: see .badge below. */
+    --radius: 0.25rem;
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    --surface-sunken: 240 12% 6%; /* #0f0f12                      */
+    --surface-canvas: 240 8% 9%; /* #121317                      */
+    --surface: 240 7% 12%; /* #1a1b1f                     */
+    --surface-overlay: 240 7% 15%; /* #1e1f23                   */
+    --surface-hover: 240 7% 17%;
+    --surface-active: 240 6% 22%;
+
+    --foreground: 240 12% 92%;
+    --fg-muted: 240 6% 70%;
+    --fg-subtle: 240 5% 58%;
+    --fg-faint: 240 5% 46%;
+
+    --border: 240 7% 20%;
+    --hairline: 240 6% 30%;
+
+    --primary: 234 84% 76%; /* lightens for a dark canvas      */
+    --primary-hover: 234 88% 82%;
+    --primary-foreground: 243 60% 10%;
+    --primary-soft: 234 40% 17%;
+    --primary-soft-border: 234 35% 32%;
+    --ring: 234 84% 76%;
+
+    --success-fg: 150 58% 62%;
+    --success-bg: 154 42% 14%;
+    --success-border: 152 32% 27%;
+
+    --warning-fg: 40 90% 66%;
+    --warning-bg: 30 42% 13%;
+    --warning-border: 32 38% 30%;
+
+    --danger-fg: 4 80% 71%;
+    --danger-bg: 358 42% 16%;
+    --danger-border: 358 38% 30%;
+
+    --neutral-fg: 240 6% 66%;
+    --neutral-bg: 240 6% 17%;
+    --neutral-border: 240 6% 28%;
+
+    --destructive-foreground: 0 0% 100%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground text-[13px];
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+    /* A desktop window should not rubber-band or show a text caret on a drag. */
+    overscroll-behavior: none;
+  }
+
+  /*
+   * 13px, not the browser's 16px default.
+
+   * This is a fixed-size window on a desktop, where a list has to fit on screen
+   * rather than be scrolled. 16px body text with 1.5 line-height gave roughly 34
+   * lines in the 636px content area; 13px gives 45, and the difference is
+   * whether a paired-device list needs scrolling at all. Every larger size in
+   * the app is an explicit step above this, not an accident of inheritance.
+
+   * Set here rather than on a wrapper so that anything added later without a
+   * size class lands on the dense default instead of the browser's.
+   */
+  input,
+  textarea,
+  select,
+  button {
+    font-size: inherit;
+  }
+
+  /* Identifiers, ports, versions, fingerprints and counts all use the mono
+   * stack with tabular figures, so digits line up down a list. */
+  .font-mono,
+  code,
+  kbd,
+  samp {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Respect the OS setting. The app offers an explicit override, but if the
+   * user has not chosen one, reduced motion wins. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* --- buttons ---------------------------------------------------- */
+  /* 28px, not 40px. This is a dense desktop tool; 40px rows are a web form. */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-45;
+  }
+  .btn-primary {
+    @apply btn h-7 bg-primary px-2.5 text-primary-foreground hover:bg-primary-hover;
+  }
+  .btn-secondary {
+    @apply btn h-7 border border-border bg-surface px-2.5 hover:bg-surface-hover;
+  }
+  .btn-outline {
+    @apply btn-secondary;
+  }
+  .btn-ghost {
+    @apply btn h-7 px-2 hover:bg-surface-hover;
+  }
+  .btn-destructive {
+    @apply btn h-7 bg-danger-fg px-2.5 text-white hover:opacity-90;
+  }
+  .btn-sm {
+    @apply h-6 px-2 text-xs;
+  }
+  .btn-lg {
+    @apply h-9 px-4;
+  }
+  .btn-icon {
+    @apply h-7 w-7 p-0;
+  }
+
+  .input {
+    @apply flex h-7 w-full rounded border border-input bg-surface px-2 text-[13px] ring-offset-background placeholder:text-fg-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .label {
+    @apply text-[13px] font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70;
+  }
+
+  .textarea {
+    @apply input h-auto py-1.5;
+  }
+
+  /* --- cards ------------------------------------------------------
+   * Depth comes from tonal layering plus a hairline, never a decorative
+   * shadow. The one exception is a true overlay, which floats.
+   */
+  .card {
+    @apply rounded-md border border-border bg-surface text-card-foreground;
+  }
+  .card-header {
+    @apply flex flex-col space-y-1 px-3 py-2.5;
+  }
+  .card-title {
+    @apply text-[15px] font-semibold leading-tight tracking-[-0.01em];
+  }
+  .card-description {
+    @apply text-[12px] text-fg-muted;
+  }
+  .card-content {
+    @apply px-3 pb-2.5;
+  }
+  .card-footer {
+    @apply flex items-center px-3 pb-2.5;
+  }
+
+  /* --- badges -----------------------------------------------------
+   * `rounded` (4px), never `rounded-full`. A pill on a 20px badge reads as
+   * a web badge, not a macOS one. Status variants are tinted fills with a
+   * matching border, so they survive both canvases.
+   */
+  .badge {
+    @apply inline-flex h-[20px] shrink-0 items-center gap-1 whitespace-nowrap rounded border px-1.5 text-[11px] font-medium leading-none;
+  }
+  .badge-default {
+    @apply badge border-transparent bg-primary text-primary-foreground;
+  }
+  .badge-secondary {
+    @apply badge border-border bg-surface-hover text-fg-muted;
+  }
+  .badge-destructive {
+    @apply badge border-danger-border bg-danger-bg text-danger-fg;
+  }
+  .badge-outline {
+    @apply badge border-border text-foreground;
+  }
+  .badge-success {
+    @apply badge border-success-border bg-success-bg text-success-fg;
+  }
+  .badge-warning {
+    @apply badge border-warning-border bg-warning-bg text-warning-fg;
+  }
+  .badge-danger {
+    @apply badge border-danger-border bg-danger-bg text-danger-fg;
+  }
+  .badge-neutral {
+    @apply badge border-neutral-border bg-neutral-bg text-neutral-fg;
+  }
+  .badge-accent {
+    @apply badge border-primary-soft-border bg-primary-soft text-primary;
+  }
+
+  .separator {
+    @apply shrink-0 bg-border;
+  }
+  .separator-horizontal {
+    @apply separator h-px w-full;
+  }
+  .separator-vertical {
+    @apply separator h-full w-px;
+  }
+
+  /* --- window chrome ---------------------------------------------- */
+  /* The status bar at the bottom of the window. `tabular-nums` on the mono
+   * items keeps the port and counts from shifting as they change. */
+  .statusbar {
+    @apply flex h-6 shrink-0 items-center gap-3 border-t border-border bg-surface-sunken px-3 text-[11px] text-fg-subtle;
+  }
+
+  /* Hairline scrollbars, matching the window rather than the OS default. */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--hairline) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--hairline));
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

@@ -1,0 +1,23 @@
+[package]
+name = "workspace_clone_network"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Network layer for Workspace Clone"
+
+[dependencies]
+workspace_clone_core = { path = "../core" }
+workspace_clone_crypto = { path = "../crypto" }
+workspace_clone_db = { path = "../db" }
+mdns-sd = { workspace = true }
+tokio = { workspace = true }
+bytes = { workspace = true }
+futures = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+sha2 = { workspace = true }

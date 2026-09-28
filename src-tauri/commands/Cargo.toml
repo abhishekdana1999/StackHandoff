@@ -1,0 +1,28 @@
+[package]
+name = "workspace_clone_commands"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Tauri commands for Workspace Clone"
+
+[dependencies]
+workspace_clone_core = { path = "../core" }
+workspace_clone_crypto = { path = "../crypto" }
+workspace_clone_db = { path = "../db" }
+workspace_clone_network = { path = "../network" }
+workspace_clone_adapters = { path = "../adapters" }
+workspace_clone_preflight = { path = "../preflight" }
+workspace_clone_restore = { path = "../restore" }
+tauri = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+dirs = { workspace = true }
+rand = { workspace = true }
+sha2 = { workspace = true }
+directories = { workspace = true }

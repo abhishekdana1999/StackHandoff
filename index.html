@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Workspace Clone - Cross-device work-session continuity for developers" />
+    <title>Workspace Clone</title>
+    <!--
+      The app renders in the system font (SF Pro on macOS). It used to link
+      Inter and JetBrains Mono from fonts.googleapis.com, which meant a request
+      to a third party on every launch — including the visitor's IP — in an app
+      whose entire pitch is that nothing leaves the local network. The mono stack
+      still lists JetBrains Mono for machines that have it installed locally.
+
+      Setting the theme here, before the bundle runs, avoids a flash of the wrong
+      mode. It is a deliberate one-line duplicate of the logic in
+      `src/store/useThemeStore.ts`; inlining it is the only way to run before
+      first paint, and the store takes over as soon as the bundle loads.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = window.localStorage.getItem('wc.theme');
+          var dark =
+            stored === 'dark' ||
+            (stored !== 'light' &&
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var resolved = dark ? 'dark' : 'light';
+          document.documentElement.classList.toggle('dark', dark);
+          document.documentElement.style.colorScheme = resolved;
+        } catch (e) {
+          /* storage disabled: fall through to the light default */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

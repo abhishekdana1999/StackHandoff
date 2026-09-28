@@ -1,0 +1,27 @@
+[package]
+name = "workspace_clone_core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Core types and manifest model for Workspace Clone"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+schemars = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+uuid = { workspace = true, features = ["v4", "serde", "fast-rng"] }
+chrono = { workspace = true, features = ["serde"] }
+regex = { workspace = true }
+url = { workspace = true }
+zeroize = { workspace = true }
+secrecy = { workspace = true }
+rand = { workspace = true }
+rand_core = { workspace = true }
+x25519-dalek = { workspace = true }
+ed25519-dalek = { workspace = true }
+base64 = { workspace = true }
+sha2 = { workspace = true }
+aes-gcm = { workspace = true }
+hkdf = { workspace = true }

@@ -1,0 +1,62 @@
+[workspace]
+resolver = "2"
+members = [
+    "core",
+    "crypto",
+    "db",
+    "network",
+    "adapters",
+    "preflight",
+    "restore",
+    "commands",
+    "app",
+]
+
+[workspace.dependencies]
+tauri = { version = "2.11.6", features = [] }
+tauri-plugin-log = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-os = "2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+schemars = "0.8"
+thiserror = "1.0"
+anyhow = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.0", features = ["v4", "serde", "fast-rng"] }
+chrono = { version = "0.4", features = ["serde"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid", "migrate"] }
+# sqlcipher = "0.29"
+regex = "1.0"
+which = "7"
+url = "2.0"
+base64 = "0.22"
+hex = "0.4"
+snow = "0.9"
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+ed25519-dalek = "2.0"
+rand = { version = "0.8", features = ["std"] }
+rand_core = "0.6"
+zeroize = "1.0"
+secrecy = "0.10"
+sha2 = "0.10"
+mdns-sd = "0.13"
+bytes = "1.0"
+futures = "0.3"
+async-trait = "0.1"
+once_cell = "1.0"
+parking_lot = "0.12"
+dashmap = "5.0"
+clap = { version = "4.0", features = ["derive"] }
+dirs = "5.0"
+keyring = "4"
+directories = "5.0"
+hkdf = "0.12"
+aes-gcm = "0.10"

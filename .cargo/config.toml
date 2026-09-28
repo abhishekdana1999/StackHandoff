@@ -1,0 +1,18 @@
+# No `[build] target` here, on purpose.
+#
+# This file used to pin `target = "aarch64-apple-darwin"`, which was redundant
+# on an Apple Silicon Mac (it is the host default anyway) and fatal anywhere
+# else: Cargo applies `[build] target` to every invocation from anywhere in the
+# repo, on any host, so `cargo build` on the Windows laptop tried to compile
+# for Apple Silicon and failed before compiling anything. The output path moved
+# to target/<triple>/debug/ as a side effect, which made the rest of the tree
+# look hand-configured for macOS.
+#
+# If you need a specific triple, pass it explicitly: `cargo build --target ...`.
+# The triple subdirectory then appears under target/ as normal.
+
+[target.aarch64-apple-darwin]
+linker = "clang"
+
+[env]
+SQLX_OFFLINE = "true"
