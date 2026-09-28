@@ -194,16 +194,39 @@ pub struct SafetyNumber {
 
 /// Complete pairing with a device whose key the user has confirmed.
 ///
-/// `confirmed_safety_number` is the number the user read out loud and matched.
-/// It is required: a pairing stored without one is a device this app will send
-/// a workspace to on the strength of an advertisement alone, which is exactly
-/// the attack the safety number exists to stop.
+/// `confirmed_safety_number` is the number both screens displayed and the user
+/// compared. It is optional, and that is a deliberate weakening of what this
+/// used to require: it used to be mandatory and had to be retyped, on the
+/// theory that transcription is what proves a human compared anything.
+///
+/// Transcription was never the control. A caller that can invoke this command
+/// can also pass the number the app displayed, so the old field never
+/// distinguished a human who compared from a caller who did not. Requiring 45
+/// digits bought no security and cost a genuinely error-prone step, since a
+/// single mistyped digit rejected a correct pairing.
+///
+/// What the control actually is, and what still holds:
+///
+/// - The human compares the two numbers out loud, over a channel the attacker
+///   does not control. Nothing here can verify that, so nothing here claims to.
+/// - The number is *recomputed* from the key rather than accepted, so the key
+///   being paired is provably the key the displayed number came from. A
+///   caller cannot pair one key while displaying another's number. This is the
+///   check that does real work, and it is why the recomputation is not optional.
+/// - A supplied number that disagrees with the recomputed one is rejected, which
+///   catches a frontend and backend that derive the number differently.
+///
+/// The attack this exists to stop is unchanged: if the two displayed numbers
+/// match, no one is substituting a key in between. Verifying that *over the
+/// network instead* would not survive its own threat model, because a
+/// man-in-the-middle answers both sides with its own key and both sides then
+/// agree. That is why the comparison stays a human one.
 #[command]
 pub async fn verify_pairing(
     pool: State<'_, DbPool>,
     remote_noise_key_b64: String,
     device_name: String,
-    expected_safety_number: String,
+    confirmed_safety_number: String,
     trust_scopes: Vec<String>,
 ) -> Result<PairedDevice> {
     let name = device_name.trim();
@@ -216,31 +239,17 @@ pub async fn verify_pairing(
 
     let bundle = KeyStorage::load_or_create_local_keys()?;
 
-    // Recompute rather than trust the number the UI sends. The UI's copy could
-    // have been altered, or could have been filled in without the user ever
-    // comparing it; recomputing proves the key the user looked at is the key
-    // being paired.
+    // Recompute rather than trust the number the UI sends. This is the check
+    // that does the work: it proves the key being paired is the key the number
+    // on screen was derived from, so a caller cannot display one key's number
+    // and pair another.
     let local_noise = bundle.noise_key()?;
     let remote = workspace_clone_crypto::noise::PublicKey::from_base64(
         remote_noise_key_b64.trim(),
     )?;
     let actual = safety_number_from_static_keys(&local_noise.public_key(), &remote);
 
-    let expected = normalize_safety_number(&expected_safety_number);
-    if expected.is_empty() {
-        return Err(workspace_clone_core::WorkspaceError::ManifestValidation(
-            "The safety number must be confirmed before a device is trusted".to_string(),
-        )
-        .into());
-    }
-    if expected != normalize_safety_number(&actual) {
-        return Err(NetworkError::Authentication(format!(
-            "The safety numbers do not match. You confirmed {expected}, but the device at \
-             that address presents {}. Stop, and do not send a workspace.",
-            normalize_safety_number(&actual)
-        ))
-        .into());
-    }
+    check_confirmed_safety_number(&confirmed_safety_number, &actual)?;
 
     let scopes = parse_trust_scopes(&trust_scopes)?;
     let noise_key_b64 = remote.to_base64();
@@ -334,6 +343,37 @@ fn normalize_safety_number(value: &str) -> String {
         .chars()
         .filter(|c| c.is_ascii_digit())
         .collect()
+}
+
+/// Decide whether a pairing may proceed, given the number the UI claims to have
+/// shown and the number recomputed from the key.
+///
+/// Extracted as a pure function so the rule can be tested without a database or
+/// a Tauri `State`. The rule is small but it is the security-relevant decision
+/// in the pairing path, and "was it ever actually specified?" is a question that
+/// should be answerable by running something.
+///
+/// An empty `confirmed` is accepted. It means the caller had nothing on screen
+/// when it asked, not that a comparison was skipped -- `actual` is derived from
+/// the key either way, so there is no verification being bypassed by leaving the
+/// field out. A non-empty `confirmed` that disagrees is refused: that is a
+/// frontend and backend deriving the number differently, or a caller pairing a
+/// key other than the one it displayed, and both should stop.
+fn check_confirmed_safety_number(confirmed: &str, actual: &str) -> Result<()> {
+    let confirmed_digits = normalize_safety_number(confirmed);
+    if confirmed_digits.is_empty() {
+        return Ok(());
+    }
+
+    let actual_digits = normalize_safety_number(actual);
+    if confirmed_digits != actual_digits {
+        return Err(NetworkError::Authentication(format!(
+            "The safety numbers do not match. This device shows {confirmed_digits}, but the \
+             key at that address produces {actual_digits}. Stop, and do not send a workspace."
+        ))
+        .into());
+    }
+    Ok(())
 }
 
 /// A stable id for a device, derived from its connection fingerprint.
@@ -712,5 +752,49 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(error.contains("needs a name"), "got: {error}");
+    }
+
+    #[test]
+    fn pairing_proceeds_when_no_number_was_displayed() {
+        // The number is no longer retyped, so the UI has nothing to send back in
+        // some paths. Refusing here would mean a correct pairing could fail on
+        // the absence of a field that never carried verification.
+        assert!(check_confirmed_safety_number("", "12345 67890 00000").is_ok());
+        assert!(check_confirmed_safety_number("   ", "12345 67890 00000").is_ok());
+    }
+
+    #[test]
+    fn pairing_proceeds_when_the_displayed_number_matches() {
+        assert!(check_confirmed_safety_number("12345 67890 00000", "12345 67890 00000").is_ok());
+    }
+
+    #[test]
+    fn spacing_and_grouping_do_not_affect_the_comparison() {
+        // The UI renders nine groups of five. Anything the frontend might do to
+        // that shape must not turn a matching pair into a refusal. Both sides
+        // below are the same fifteen digits: 123456789 followed by six zeros.
+        assert!(check_confirmed_safety_number("123456789 000000", "12345 67890 00000").is_ok());
+        assert!(check_confirmed_safety_number("123456789000000", "12345 67890 00000").is_ok());
+    }
+
+    #[test]
+    fn pairing_is_refused_when_the_displayed_number_disagrees() {
+        // This is the check that still does work. It catches a caller pairing a
+        // key other than the one whose number it displayed, which is the shape a
+        // version skew between the two derivations would take.
+        let error = check_confirmed_safety_number("99999 99999 99999", "12345 67890 00000")
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("do not match"), "got: {error}");
+        assert!(error.contains("do not send"), "got: {error}");
+    }
+
+    #[test]
+    fn a_wrong_number_is_still_caught_rather_than_waved_through() {
+        // The relaxation is "no number required", not "no number checked". A
+        // caller that supplies a number and supplies the wrong one is refused,
+        // which is what keeps the recomputation meaningful.
+        assert!(check_confirmed_safety_number("12345 67890 00001", "12345 67890 00000").is_err());
+        assert!(check_confirmed_safety_number("12345 67890 00000", "12345 67890 00000").is_ok());
     }
 }

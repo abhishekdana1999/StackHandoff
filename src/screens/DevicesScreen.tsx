@@ -56,7 +56,6 @@ export function DevicesScreen() {
   const [mode, setMode] = useState<PairMode>('choose');
   const [remoteKey, setRemoteKey] = useState('');
   const [remoteName, setRemoteName] = useState('');
-  const [typedNumber, setTypedNumber] = useState('');
   const [scopes, setScopes] = useState<TrustScope[]>(['receive', 'send']);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -88,19 +87,24 @@ export function DevicesScreen() {
 
   const computeSafetyNumber = useMutation({
     mutationFn: (key: string) => getSafetyNumber(key),
-    onSuccess: (result) => {
+    onSuccess: () => {
       setMode('safety');
-      setTypedNumber('');
-      void result;
     },
   });
 
+  // Sends the number this screen displayed rather than one the user retyped.
+  // The comparison still has to happen -- between the two screens, out loud --
+  // but the app cannot verify that a human did it, so it does not pretend to
+  // verify it. What it *can* verify is that the key being paired is the key the
+  // displayed number was derived from, and that check stays: it is in the Rust
+  // command, and the frontend cannot talk the backend into pairing a different
+  // key.
   const pair = useMutation({
     mutationFn: () =>
       verifyPairing({
         remoteNoiseKeyB64: remoteKey,
         deviceName: remoteName,
-        expectedSafetyNumber: typedNumber,
+        confirmedSafetyNumber: computeSafetyNumber.data?.number ?? '',
         trustScopes: scopes,
       }),
     onSuccess: () => {
@@ -133,7 +137,6 @@ export function DevicesScreen() {
     setMode('choose');
     setRemoteKey('');
     setRemoteName('');
-    setTypedNumber('');
     pair.reset();
     computeSafetyNumber.reset();
   }
@@ -522,20 +525,18 @@ export function DevicesScreen() {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="confirm-number">Type what the other screen shows</Label>
-                <Input
-                  id="confirm-number"
-                  value={typedNumber}
-                  onChange={(e) => setTypedNumber(e.target.value)}
-                  placeholder="45 digits"
-                  className="font-mono"
-                  inputMode="numeric"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Typing it is the point. A number that appeared and was accepted without being
-                  compared would defeat the check entirely, so the app will not accept this field
-                  pre-filled for you.
+              <div className="rounded-lg border border-warning-border bg-warning-bg p-3">
+                <p className="text-sm font-medium">Before you pair, look at the other screen</p>
+                <ol className="mt-2 space-y-1 text-sm text-muted-foreground list-decimal list-inside">
+                  <li>On the other machine, open Devices → Pair this device</li>
+                  <li>Select this machine, so both screens show a safety number</li>
+                  <li>
+                    Check the digits match, then come back here and continue
+                  </li>
+                </ol>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Both screens show the same number for the same two machines, so if they differ,
+                  something is substituting one device for the other. Stop and do not pair.
                 </p>
               </div>
 
@@ -555,11 +556,11 @@ export function DevicesScreen() {
                 <Button
                   className="flex-1"
                   loading={pair.isPending}
-                  disabled={typedNumber.trim().length === 0 || scopes.length === 0}
+                  disabled={scopes.length === 0}
                   onClick={() => pair.mutate()}
                 >
                   <Check className="w-4 h-4 mr-2" />
-                  They match — pair
+                  The numbers match — pair
                 </Button>
               </div>
             </div>

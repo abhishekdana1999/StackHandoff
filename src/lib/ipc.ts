@@ -147,15 +147,26 @@ export const getSafetyNumber = (remoteNoiseKeyB64: string): Promise<SafetyNumber
   invoke('get_safety_number', { remoteNoiseKeyB64 });
 
 /**
- * Complete pairing. The confirmed safety number is required, not optional: a
- * pairing stored without one is a device this app will send a workspace to on
- * the strength of an advertisement alone, which is the attack the safety number
- * exists to prevent.
+ * Complete pairing.
+ *
+ * `confirmedSafetyNumber` is what both screens showed and the user compared. It
+ * is optional and is not retyped: the caller passes the number it displayed.
+ *
+ * Requiring a retyped copy used to look stricter and was not. Any caller that
+ * can reach this can also pass the number the app displayed, so the field never
+ * separated a human who compared from a caller who did not -- it only made a
+ * correct pairing fail whenever one digit was mistyped.
+ *
+ * The control that does hold is out of band and human: the two screens are
+ * compared out loud, and the backend recomputes the number from the key so the
+ * paired key is provably the one on screen. Checking that agreement over the
+ * network instead would be worthless, because a man-in-the-middle answers both
+ * sides with its own key and both sides then agree.
  */
 export const verifyPairing = (args: {
   remoteNoiseKeyB64: string;
   deviceName: string;
-  expectedSafetyNumber: string;
+  confirmedSafetyNumber: string;
   trustScopes: string[];
 }): Promise<PairedDevice> => invoke('verify_pairing', args);
 

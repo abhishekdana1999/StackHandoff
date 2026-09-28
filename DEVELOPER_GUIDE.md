@@ -242,30 +242,44 @@ Leave **both** apps open, on the **same Wi-Fi**.
 
 1. Click **Devices** in the sidebar.
 2. Click **Pair a device**.
-3. Type a name for the *other* machine, e.g. `Work Laptop`.
+3. Type a name for **this** machine, e.g. `MacBook Pro`. This is the name the
+   person at the other machine will see.
 4. Under **Devices on the network**, your Windows laptop should appear within a
    few seconds. Click it.
 
    *If it does not appear,* skip to the "If the laptop is not listed" box below.
 5. The app shows a **safety number** — a long string of digits.
-6. **Read it out loud.** The person at the other machine has the same number on
-   their screen.
-7. Only if the two match, go to step 8. If they differ, **stop** and start over —
-   that means something is intercepting the connection, and you should not pair.
+6. **On the Windows laptop, do the same thing choosing the Mac** (below). Both
+   screens now show a number.
+7. **Compare the two screens.** If they match, press **The numbers match — pair**
+   on the Mac. If they differ, **stop** and start over — that means something is
+   intercepting the connection, and you should not pair.
 
-**On the Windows laptop**, do the same thing, choosing the Mac.
+**On the Windows laptop:** Devices → **Pair a device** → type a name for the
+laptop → under **Devices on the network** click the Mac. It shows the *same*
+number.
 
 ### Reading the safety number
 
 This is the step that makes the whole thing safe, and it is easy to want to skip.
 
-Both screens show a number derived from the two machines' keys. The app then
-**requires you to type it back in** — it will not accept a pre-filled field.
+Both screens show a number derived from the two machines' keys. You **compare
+the two screens** and press one button. There is nothing to type.
 
-Why? Because a number that appeared on your screen and was accepted without
-comparison proves nothing. You would be confirming that *the app* computed a
-number, not that *the person across the room* has the same one. Typing it is
-what makes it a check between two humans.
+Why is that still a real check? Because the number travels between the two
+machines **by you reading it aloud**, not by the app sending it over the
+network. That is the entire point. A number that appeared on your screen and
+was accepted automatically would prove only that the app computed a number — and
+a man-in-the-middle on the same Wi-Fi could compute a matching one on both
+sides, which is exactly the attack this is meant to catch.
+
+The app also **recomputes** the number from the key rather than trusting the
+screen, so the key it pairs is provably the key the number came from. It cannot
+pair one device while displaying another's.
+
+An earlier version made you retype all 45 digits. That bought no security — any
+caller of the command could pass the number the app displayed — and it made
+correct pairings fail whenever a single digit was mistyped.
 
 If the numbers differ, do not pair. Either a machine is impersonating another,
 or you paired the wrong device.
@@ -1116,36 +1130,53 @@ trace at all. Any new transfer path must record its outcome.
 Honest list of what is not finished. None of these are hidden; each is a
 decision or a limitation, not a surprise.
 
-**The Windows build has never been run.** Not "unverified in a small way" —
-it has never compiled, launched, or been seen. Developed and verified on macOS.
-Three things were found by inspection, and all three are fixed, and all three
-are still unproven:
+**The Windows build works; the Windows *app* is only partly proven.** It has
+been built, installed and launched on a real Windows machine, and the two
+machines now discover each other over mDNS. What is proven, and what is not:
 
-- `.cargo/config.toml` pinned `build.target = "aarch64-apple-darwin"`, which
-  Cargo applies on every host. Every `cargo` command on the Windows laptop would
-  have failed before compiling anything. Fixed, and
-  `scripts/build_windows.sh` refuses to run if the pin comes back.
-- `hostname()` fell back to the literal string `"This Mac"` on any host without
-  `HOSTNAME` — which is every Windows machine. Two machines pairing and both
-  listed as "This Mac" is precisely what that function exists to prevent. Now
-  reads `COMPUTERNAME`, with 7 tests over the platform logic.
-- The VS Code probe tested a literal path containing `USERNAME` as a
-  stand-in for the account name. Nothing expands it, so per-user VS Code
-  installs (the default without admin rights) were reported as absent, and
-  preflight would tell the user to install an editor they already had.
+Proven on real hardware:
 
-That third one is the pattern to expect more of: detection code that reports
-absence rather than failing loudly, so a wrong answer becomes a wrong
-instruction. The credential store should work — `keyring` 4.2 defaults to
-feature `v1`, which includes `windows-native-keyring-store` — but that is a
-reading of a feature table, not an observation of it working. mDNS behind a
-Windows firewall has never been tested either, and it is the most common
-reason pairing silently fails.
+- `scripts/build_windows.sh` produces a working installer. It needed two fixes
+  on the first real run: the Visual Studio lookup only knew about "2022" while
+  the installed Build Tools live under a directory named for the compiler
+  version, and Smart App Control blocks the unsigned build scripts cargo has to
+  execute (`os error 4551`).
+- The Windows credential store works. This was inferred from a feature table and
+  is now observed: the laptop's mDNS record carries a `device_id` and
+  `static_key`, which can only exist if it read its Noise key from Credential
+  Manager.
+- `hostname()` reports the real machine name — the laptop advertises itself as
+  `BISWAJITA`, from `COMPUTERNAME`, not the `"This Mac"` the old fallback
+  produced.
+- Discovery, name resolution and the firewall are all fine: a TCP connect from
+  the Mac to the laptop's advertised transfer port succeeded in 0.01s.
 
-`.github/workflows/windows-installer.yml` has never been executed; it was
-written on a machine that could not reach `github.com` or `aka.ms`. Treat the
-first run as a debugging session, not a build. **Verify the restore path on
-Windows before trusting it.**
+Still unproven:
+
+- The Noise handshake and completing the pairing ceremony.
+- Any actual capture → transfer → restore.
+- The adapter probes. A successful build says nothing about whether the VS Code
+  probe finds a per-user install; that only shows up on a capture. The old
+  Windows list contained a literal `C:\Users\USERNAME\...` path that nothing
+  expands, so per-user installs were reported as absent and preflight told users
+  to install an editor they already had. **Run a capture on the laptop and check
+  what the manifest says about its editor.**
+- `.github/workflows/windows-installer.yml` has still never been executed.
+
+The failure mode to expect more of: detection code that reports *absence*
+rather than failing loudly, so a wrong answer becomes a wrong instruction.
+
+**The macOS bundle is ad-hoc signed, and `spctl` will still say "rejected".**
+`bundle.macOS.signingIdentity` is set to `"-"` in `tauri.conf.json`, so
+`tauri build` signs the bundle itself and `codesign -v` passes. That is enough
+for Gatekeeper to load it on the machine that built it. The remaining
+`rejected` is the *distribution* verdict for an app with no Developer ID and no
+notarisation, and it does not affect local launch.
+
+A DMG copied to a **different** Mac is a different story: it arrives
+quarantined, and an ad-hoc signature cannot satisfy Gatekeeper, so it needs
+right-click → Open. Only a Developer ID plus notarisation fixes that, and it
+becomes worth doing when you distribute beyond your own machines.
 
 **Linux, relay and multi-user are not started.** Phase 5 of the blueprint. The
 data model anticipates them — the `transfer_sessions` table has a source and a

@@ -123,19 +123,40 @@ describe('the preflight bridge', () => {
 });
 
 describe('pairing', () => {
-  it('always sends a safety number, because the command requires one', async () => {
+  it('forwards the confirmed safety number under the name the command expects', async () => {
     mockBackend({ verify_pairing: () => ({}) });
 
     await ipc.verifyPairing({
       remoteNoiseKeyB64: 'remote-key',
       deviceName: 'Alex MacBook',
-      expectedSafetyNumber: '12345 67890',
+      confirmedSafetyNumber: '12345 67890',
       trustScopes: ['receive'],
     });
 
-    // The whole point of the command's signature: a pairing stored without a
-    // confirmed number trusts an advertisement, which is the attack the number
-    // exists to stop.
-    expect(backend.lastArgs('verify_pairing').expectedSafetyNumber).toBe('12345 67890');
+    const args = backend.lastArgs('verify_pairing');
+    expect(args.confirmedSafetyNumber).toBe('12345 67890');
+
+    // The rename is the load-bearing part. A Tauri command rejects arguments it
+    // does not declare, so a frontend still sending `expectedSafetyNumber` would
+    // fail at runtime while every type check passed -- which is exactly what
+    // happened when the two names drifted apart in the Rust doc comment.
+    expect(args).not.toHaveProperty('expectedSafetyNumber');
+  });
+
+  it('allows pairing with no number at all, because the number is no longer retyped', async () => {
+    mockBackend({ verify_pairing: () => ({}) });
+
+    // The backend recomputes the number from the key regardless, so an empty
+    // field costs no verification -- it only means the UI had nothing displayed
+    // when it made this call. Blocking it here would reintroduce the coupling
+    // that made a correct pairing fail on a mistyped digit.
+    await expect(
+      ipc.verifyPairing({
+        remoteNoiseKeyB64: 'remote-key',
+        deviceName: 'Alex MacBook',
+        confirmedSafetyNumber: '',
+        trustScopes: ['receive'],
+      }),
+    ).resolves.toBeDefined();
   });
 });
