@@ -598,6 +598,16 @@ receiving machine.
 - Confirm the OS firewall prompt was allowed on the **receiving** machine.
 - Confirm both are on the same subnet.
 
+### The Mac says "No route to host" and names a `fe80::…` address
+
+That address is an IPv6 link-local address. It names a *link*, not a
+destination, and the OS refuses to guess which of your interfaces the peer is
+on, so the attempted connect fails before it reaches the network. Current
+builds do not hit this: the send tries every advertised address with IPv4
+first (which almost always just works on a LAN), and when the peer is only
+reachable over IPv6 the address is scoped to the local interface that can host
+it. Update the app on the Mac and send again.
+
 ### "Not accepted" on the laptop, with a reason about a device it has never seen
 
 This happens when a workspace is **forwarded** — sent from A to B, then B sends
@@ -841,7 +851,7 @@ build takes minutes; later ones take seconds.
 ### Tests
 
 ```bash
-# Rust — 394 tests
+# Rust — 405 tests
 cd src-tauri
 cargo test --workspace -- --test-threads=2
 
@@ -892,15 +902,15 @@ in your tree; it is a leftover and will not match current source.
 
 | Layer                                                          | Count         | Covers                                                                                                                |
 | -------------------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `core`, `crypto`, `db`, `preflight`, `restore` units | 159           | pure logic: manifest validation, crypto, repositories, requirement checks, restore execution                            |
-| `files` units                                                | 13            | snapshot denylist + caps, archive round-trips, hostile extraction, the wire envelope                                   |
+| `core`, `crypto`, `db`, `preflight`, `restore` units | 159           | pure logic: manifest validation, crypto, repositories, requirement checks, restore execution                          |
+| `files` units                                                | 13            | snapshot denylist + caps, archive round-trips, hostile extraction, the wire envelope                                  |
 | `adapters` units                                             | 62            | capture, detection, path redaction, the safety predicates                                                             |
-| `network` units                                              | 68            | handshake, framing, digest, cancellation, discovery and naming                                                        |
+| `network` units                                              | 79            | handshake, framing, digest, cancellation, discovery and naming, connect-address selection                            |
 | `network/tests/loopback_transfer.rs`                         | 8             | real TCP, real Noise_IK, two services in one process                                                                  |
 | `commands` unit tests                                        | 66            | authorization gates, refusals, validation, platform naming, destination resolution                                    |
-| **`commands/tests/two_device_transfer.rs`**            | **12**  | **the whole two-machine path, files included**                                                                 |
+| **`commands/tests/two_device_transfer.rs`**            | **12**  | **the whole two-machine path, files included**                                                                  |
 | **`adapters/tests/ipc_selection_contract.rs`**         | **6**   | **TypeScript and Rust agree on field names**                                                                    |
-| **Total Rust**                                           | **394** |                                                                                                                       |
+| **Total Rust**                                           | **405** |                                                                                                                       |
 | Frontend (`vitest`)                                          | 99            | routes resolve the URL id; receive UI; IPC wiring; theme + shell; one`<h1>` per route; status bar reads the backend |
 
 ### `two_device_transfer.rs` is the important one
@@ -1096,6 +1106,23 @@ Neither side trusts the other on the strength of a successful handshake:
 The identity checked is always the **Noise static key the handshake
 authenticated** — never the device id in a frame header, which is an
 unauthenticated string anything on the network could put there.
+
+### The connect uses every advertised address, and the listener accepts both families
+
+A device discovered over mDNS may list a link-local IPv6 address (`fe80::…`)
+before its IPv4 address, and connecting to a bare `fe80::…` fails before the
+network is even consulted: the address names the *link*, and the OS refuses to
+guess which interface the peer is on. The send therefore does not take the
+first entry. It expands every advertised address into connect candidates —
+IPv4 first, each link-local IPv6 scoped to a local interface that can host it
+(`fe80::x%en0`) — and races them against one connect budget, taking the first
+that answers, so a peer reached over IPv4 connects even when its record lists
+IPv6 first. The transfer listener is bound dual-stack (`[::]` with
+`IPV6_V6ONLY` off) where the platform allows it, which is what lets a peer
+connecting over its link-local IPv6 address be accepted at all; where that is
+impossible the IPv4-only bind the listener has always used remains the
+fallback. Manual pairing accepts a `%zone` suffix (`fe80::1%en0`) and scopes a
+bare link-local address itself.
 
 ### The manifest has no signature field
 

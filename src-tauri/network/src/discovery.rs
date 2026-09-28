@@ -4,6 +4,7 @@ use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::io::AsyncReadExt;
 // Only the tests write to a socket; the production paths only read.
 #[cfg(test)]
@@ -12,6 +13,7 @@ use tokio::sync::{mpsc, RwLock};
 use tracing::{info, warn};
 use workspace_clone_core::{device::*, NetworkError, Result};
 
+use crate::transfer::{candidate_socket_addrs, connect_any, ConnectFailure};
 use crate::wire::PROTOCOL_VERSION;
 
 /// The mDNS service type this app registers and browses.
@@ -20,6 +22,9 @@ use crate::wire::PROTOCOL_VERSION;
 /// another's suffix is how a device ends up listed under a name the user never
 /// gave it.
 pub const SERVICE_TYPE: &str = "_workspace-clone._tcp.local.";
+
+/// How long a manual pairing connect waits for the device to answer.
+const MANUAL_CONNECT_BUDGET: Duration = Duration::from_secs(5);
 
 /// Discovery service for finding paired devices on LAN
 pub struct DiscoveryService {
@@ -327,15 +332,28 @@ pub(crate) fn instance_display_name(fullname: &str, service_type: &str) -> Strin
 /// Returns an error rather than a guess, so a user who types a wrong address is
 /// told so instead of watching a spinner.
 pub async fn connect_manual(address: &str, port: u16) -> Result<DiscoveredDevice> {
-    let mut stream = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        tokio::net::TcpStream::connect((address, port)),
-    )
-    .await
-    .map_err(|_| {
-        NetworkError::Connection(format!("Nothing answered at {address}:{port} within 5 seconds"))
-    })?
-    .map_err(|e| NetworkError::Connection(format!("Could not reach {address}:{port}: {e}")))?;
+    // The address typed into the pairing dialog may be a link-local IPv6
+    // address, which needs its interface scope before the kernel will route to
+    // it. Candidate expansion scopes it for free; it also means a user who
+    // types `fe80::x%en0` by hand gets exactly that candidate.
+    let interfaces = if_addrs::get_if_addrs().unwrap_or_default();
+    let candidates = candidate_socket_addrs(&[address.to_string()], port, &interfaces);
+
+    let mut stream = match connect_any(&candidates, MANUAL_CONNECT_BUDGET).await {
+        Ok(stream) => stream,
+        Err(ConnectFailure::TimedOut { .. }) => {
+            return Err(NetworkError::Connection(format!(
+                "Nothing answered at {address}:{port} within 5 seconds"
+            ))
+            .into());
+        }
+        Err(ConnectFailure::Refused { address, error }) => {
+            return Err(NetworkError::Connection(format!(
+                "Could not reach {address}: {error}"
+            ))
+            .into());
+        }
+    };
 
     let mut parser = workspace_clone_crypto::noise::FrameParser::new();
     let mut buffer = vec![0u8; 4096];

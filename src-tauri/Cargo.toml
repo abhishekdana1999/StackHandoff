@@ -62,3 +62,8 @@ directories = "5.0"
 hkdf = "0.12"
 aes-gcm = "0.10"
 tar = "0.4"
+# Local interface enumeration, used to qualify IPv6 link-local addresses with
+# the interface scope id they need before the kernel will route to them.
+if-addrs = "0.13"
+# Dual-stack socket setup for the transfer listener (`[::]` + IPV6_V6ONLY off).
+socket2 = "0.5"

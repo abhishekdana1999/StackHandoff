@@ -23,14 +23,16 @@
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv6Addr, SocketAddr, SocketAddrV6};
 use tokio::sync::watch;
+use if_addrs::{get_if_addrs, Interface};
+use socket2::{Domain, Protocol, Socket, Type};
 use tracing::{debug, info, warn};
 use workspace_clone_core::{device::*, NetworkError, Result};
 use workspace_clone_crypto::noise::{
@@ -169,10 +171,14 @@ impl TransferService {
     }
 
     /// Start listening for incoming transfers.
+    ///
+    /// Prefers a dual-stack socket on `[::]` with `IPV6_V6ONLY` switched off,
+    /// so a peer that discovered this device by its link-local IPv6 address can
+    /// connect over IPv6 exactly like a peer that reached it over IPv4. Falls
+    /// back to the long-standing IPv4-only bind when the platform cannot offer
+    /// that, so a bind that used to work still does.
     pub async fn start(&mut self, port: u16) -> Result<u16> {
-        let listener = TcpListener::bind(("0.0.0.0", port))
-            .await
-            .map_err(|e| NetworkError::Connection(format!("Could not bind port {port}: {e}")))?;
+        let listener = bind_listener(port)?;
         let bound = listener
             .local_addr()
             .map_err(|e| NetworkError::Connection(e.to_string()))?
@@ -615,31 +621,40 @@ impl TransferService {
 
         let remote_static = public_key_of(destination)?;
 
-        let address = destination
-            .addresses
-            .first()
-            .ok_or_else(|| {
-                SendFailure::Error(
-                    NetworkError::Connection(format!(
-                        "{} advertised no address to connect to",
-                        destination.name
-                    ))
-                    .into(),
-                )
-            })?
-            .clone();
+        // Every advertised address is a candidate, IPv4 first. An mDNS record
+        // frequently leads with a link-local IPv6 address like
+        // `fe80::f727:abc9:2280:4f3:54108`, and connecting to that as written
+        // fails on macOS with "No route to host": the address names the *link*,
+        // and the kernel refuses to guess which of your interfaces the peer is
+        // on. `candidate_socket_addrs` also scopes such addresses to the local
+        // interfaces that can host them, and the race below takes the first
+        // candidate that answers, so a peer reached over IPv4 connects even
+        // when its record lists IPv6 first.
         let port = if destination.port == 0 {
             DEFAULT_PORT
         } else {
             destination.port
         };
+        let candidates = candidate_socket_addrs(
+            &destination.addresses,
+            port,
+            &get_if_addrs().unwrap_or_default(),
+        );
+        if candidates.is_empty() {
+            return Err(SendFailure::Error(
+                NetworkError::Connection(format!(
+                    "{} advertised no address to connect to",
+                    destination.name
+                ))
+                .into(),
+            ));
+        }
 
         session.status = TransferStatus::Connecting;
 
-        let connect = TcpStream::connect((address.as_str(), port));
         let mut stream = tokio::select! {
             // A cancel that arrives while connecting is honoured here rather than
-            // after the connect timeout expires, which for an address that will
+            // after the connect budget expires, which for an address that will
             // never answer is ten seconds of a button that looks broken.
             biased;
             _ = self.wait_for_cancel() => {
@@ -647,24 +662,27 @@ impl TransferService {
                     "The transfer was cancelled before the connection was made".into(),
                 ));
             }
-            connected = tokio::time::timeout(CONNECT_TIMEOUT, connect) => {
-                connected
-                    .map_err(|_| {
-                        SendFailure::Error(
+            connected = connect_any(&candidates, CONNECT_TIMEOUT) => {
+                match connected {
+                    Ok(stream) => stream,
+                    Err(ConnectFailure::TimedOut { first, budget }) => {
+                        return Err(SendFailure::Error(
                             NetworkError::Connection(format!(
-                                "Connecting to {address}:{port} timed out"
+                                "Connecting to {first} timed out after {} seconds",
+                                budget.as_secs()
                             ))
                             .into(),
-                        )
-                    })?
-                    .map_err(|e| {
-                        SendFailure::Error(
+                        ));
+                    }
+                    Err(ConnectFailure::Refused { address, error }) => {
+                        return Err(SendFailure::Error(
                             NetworkError::Connection(format!(
-                                "Could not reach {address}:{port}: {e}"
+                                "Could not reach {address}: {error}"
                             ))
                             .into(),
-                        )
-                    })?
+                        ));
+                    }
+                }
             }
         };
 
@@ -931,6 +949,199 @@ fn public_key_of(device: &DiscoveredDevice) -> Result<PublicKey> {
     })
 }
 
+/// Why a set of connect attempts produced no connection.
+///
+/// Split into these two shapes so each caller can say what happened in its own
+/// words: an address that refuses a connection immediately is a different
+/// diagnosis from an address that never answers at all.
+#[derive(Debug)]
+pub(crate) enum ConnectFailure {
+    /// The single candidate that answered said no, named with its error.
+    ///
+    /// `select_ok` returns the first error as soon as every candidate has
+    /// failed, so there is at most one of these.
+    Refused { address: String, error: String },
+    /// The whole budget ran out before any candidate answered.
+    TimedOut { first: String, budget: Duration },
+}
+
+/// Try several candidate addresses, racing them against one budget.
+///
+/// The candidates are plural because a single advertised address may be
+/// unusable: a stale entry errors immediately while the address that actually
+/// reaches the peer is another row in the same list. Racing them means the
+/// budget covers all of them once, the first candidate that connects wins, and
+/// a peer that answers over any of its addresses is reached. The caller races
+/// this future against cancellation, so a user cancel drops the pending
+/// connects with everything else.
+pub(crate) async fn connect_any(
+    candidates: &[SocketAddr],
+    budget: Duration,
+) -> std::result::Result<TcpStream, ConnectFailure> {
+    let Some(first) = candidates.first() else {
+        return Err(ConnectFailure::Refused {
+            address: "(no address)".to_string(),
+            error: "the device advertised nothing usable to connect to".to_string(),
+        });
+    };
+    let first = first.to_string();
+
+    let attempts = futures::future::select_ok(candidates.iter().map(|&candidate| {
+        let candidate = candidate;
+        Box::pin(async move {
+            match TcpStream::connect(candidate).await {
+                Ok(stream) => Ok(stream),
+                Err(e) => Err((candidate.to_string(), e)),
+            }
+        })
+    }));
+
+    match tokio::time::timeout(budget, attempts).await {
+        Ok(Ok((stream, _rest))) => Ok(stream),
+        Ok(Err((address, error))) => Err(ConnectFailure::Refused {
+            address,
+            error: error.to_string(),
+        }),
+        Err(_) => Err(ConnectFailure::TimedOut { first, budget }),
+    }
+}
+
+/// Turn every advertised address into something a TCP connect can use.
+///
+/// An mDNS record may advertise a link-local IPv6 address such as
+/// `fe80::f727:abc9:2280:4f3:54108`, and a connect to that address as written
+/// fails on macOS with "No route to host" (ENETUNREACH): the address names the
+/// *link*, and the kernel refuses to guess which of your interfaces the peer
+/// is on. A plain IPv4 address has no such problem, which is why IPv4
+/// candidates come first and why a device discovered by mDNS can almost always
+/// be reached over one: both ends proved they share a link when the discovery
+/// answer arrived.
+///
+/// For link-local IPv6 the address is therefore expanded into one candidate
+/// per local interface carrying a link-local address, each with that
+/// interface's scope id, so `fe80::x` means "x on my interface" instead of "x
+/// everywhere and nowhere". A `%zone` suffix the user typed by hand is trusted
+/// as given (`fe80::1%en0`) and kept as a single candidate, and every other
+/// address passes through unchanged. Duplicates are dropped, so a record that
+/// lists the same address twice does not get connected to twice.
+pub(crate) fn candidate_socket_addrs(
+    advertised: &[String],
+    port: u16,
+    interfaces: &[Interface],
+) -> Vec<SocketAddr> {
+    let mut v4: Vec<SocketAddr> = Vec::new();
+    let mut v6: Vec<SocketAddr> = Vec::new();
+    let mut v6_scoped: Vec<SocketAddr> = Vec::new();
+    let mut seen: HashSet<SocketAddr> = HashSet::new();
+
+    for raw in advertised {
+        let (ip, zone) = match parse_scoped_ip(raw, interfaces) {
+            Some(parsed) => parsed,
+            None => continue,
+        };
+
+        match ip {
+            IpAddr::V4(ip) => {
+                let socket = SocketAddr::new(ip.into(), port);
+                if seen.insert(socket) {
+                    v4.push(socket);
+                }
+            }
+            IpAddr::V6(ip) if ip.is_unicast_link_local() && zone.is_none() => {
+                // Scope the peer to each local interface that can host a
+                // link-local address. The pair was discovered on one of these
+                // links, and a scoped connect either reaches it or fails fast
+                // with a real route error -- never with the confusing
+                // unscoped "no route to host".
+                let mut scoped: Vec<SocketAddr> = interfaces
+                    .iter()
+                    .filter_map(|iface| match iface.ip() {
+                        IpAddr::V6(local) if local.is_unicast_link_local() => {
+                            iface.index.map(|index| {
+                                SocketAddr::V6(SocketAddrV6::new(ip, port, 0, index))
+                            })
+                        }
+                        _ => None,
+                    })
+                    .collect();
+                if scoped.is_empty() {
+                    // No local interface can scope the address. Keep it as-is
+                    // so the attempt still reports a real error instead of
+                    // pretending the peer cannot be reached.
+                    scoped.push(SocketAddr::V6(SocketAddrV6::new(ip, port, 0, 0)));
+                }
+                for socket in scoped {
+                    if seen.insert(socket) {
+                        v6_scoped.push(socket);
+                    }
+                }
+            }
+            IpAddr::V6(ip) => {
+                let socket = SocketAddr::V6(SocketAddrV6::new(ip, port, 0, zone.unwrap_or(0)));
+                if seen.insert(socket) {
+                    v6.push(socket);
+                }
+            }
+        }
+    }
+
+    v4.extend(v6);
+    v4.extend(v6_scoped);
+    v4
+}
+
+/// Parse an address string that may carry the RFC 6874 `%zone` suffix used for
+/// IPv6 link-local addresses (`fe80::1%en0`).
+///
+/// `std`'s IP parser rejects the suffix, so it is split off by hand. The zone
+/// may be a number or an interface name; a name is resolved against the local
+/// interface list. When the zone cannot be resolved the address is returned
+/// without one and the caller applies its own scoping rules.
+fn parse_scoped_ip(raw: &str, interfaces: &[Interface]) -> Option<(IpAddr, Option<u32>)> {
+    if let Some((address, zone)) = raw.rsplit_once('%') {
+        let ip: IpAddr = address.parse().ok()?;
+        let scope = zone
+            .parse()
+            .ok()
+            .or_else(|| interfaces.iter().find(|i| i.name == zone).and_then(|i| i.index));
+        return Some((ip, scope));
+    }
+    raw.parse().ok().map(|ip| (ip, None))
+}
+
+/// Bind the transfer listener, preferring a dual-stack socket.
+///
+/// `[::]` with `IPV6_V6ONLY` off accepts IPv4 and IPv6 on one socket, which is
+/// what lets a peer discovered by its link-local IPv6 address connect over
+/// IPv6 at all. The fallback keeps the IPv4-only bind the listener has always
+/// used, so a platform that cannot offer dual-stack behaves exactly as before.
+fn bind_listener(port: u16) -> Result<TcpListener> {
+    let socket = Socket::new(Domain::IPV6, Type::STREAM, Some(Protocol::TCP))
+        .ok()
+        .and_then(|socket| {
+            socket.set_only_v6(false).ok()?;
+            socket
+                .bind(&SocketAddr::from((Ipv6Addr::UNSPECIFIED, port)).into())
+                .ok()?;
+            socket.listen(1024).ok()?;
+            socket.set_nonblocking(true).ok()?;
+            Some(socket)
+        });
+    if let Some(socket) = socket {
+        let listener =
+            TcpListener::from_std(socket.into()).map_err(|e| NetworkError::Connection(e.to_string()))?;
+        return Ok(listener);
+    }
+
+    let listener = std::net::TcpListener::bind(("0.0.0.0", port))
+        .and_then(|listener| {
+            listener.set_nonblocking(true)?;
+            Ok(listener)
+        })
+        .map_err(|e| NetworkError::Connection(format!("Could not bind port {port}: {e}")))?;
+    TcpListener::from_std(listener).map_err(|e| NetworkError::Connection(e.to_string()).into())
+}
+
 /// Read one transport frame.
 async fn read_frame<R>(reader: &mut R, session: &mut NoiseSession) -> Result<WireMessage>
 where
@@ -1189,6 +1400,259 @@ mod tests {
             capabilities: DeviceCapabilities::default(),
             static_public_key: String::new(),
             last_seen: chrono::Utc::now().into(),
+        }
+    }
+
+    use if_addrs::{IfAddr, Ifv4Addr, Ifv6Addr};
+    use std::net::Ipv4Addr;
+
+    fn fake_ifaddr(ip: IpAddr) -> IfAddr {
+        match ip {
+            IpAddr::V4(ip) => IfAddr::V4(Ifv4Addr {
+                ip,
+                netmask: Ipv4Addr::UNSPECIFIED,
+                prefixlen: 0,
+                broadcast: None,
+            }),
+            IpAddr::V6(ip) => IfAddr::V6(Ifv6Addr {
+                ip,
+                netmask: Ipv6Addr::UNSPECIFIED,
+                prefixlen: 0,
+                broadcast: None,
+            }),
+        }
+    }
+
+    /// A stand-in local interface, so tests do not depend on the machine's
+    /// real network layout.
+    #[cfg(windows)]
+    fn fake_interface(name: &str, ip: IpAddr, index: u32) -> Interface {
+        Interface {
+            name: name.to_string(),
+            addr: fake_ifaddr(ip),
+            index: Some(index),
+            adapter_name: String::new(),
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn fake_interface(name: &str, ip: IpAddr, index: u32) -> Interface {
+        Interface {
+            name: name.to_string(),
+            addr: fake_ifaddr(ip),
+            index: Some(index),
+        }
+    }
+
+    #[test]
+    fn advertised_ipv4_addresses_come_first_however_the_record_is_ordered() {
+        // A record that leads with a link-local IPv6 address is exactly why the
+        // connect failed with "No route to host": IPv4 must win the ordering
+        // regardless of how mDNS happened to list the peer.
+        let advertised = vec![
+            "fe80::f727:abc9:2280:4f3:5410:8".to_string(),
+            "192.168.1.20".to_string(),
+            "fe80::4f3:5410:8".to_string(),
+            "192.168.1.21".to_string(),
+        ];
+        let candidates = candidate_socket_addrs(
+            &advertised,
+            9000,
+            &[fake_interface("en0", "fe80::1".parse().unwrap(), 5)],
+        );
+
+        assert_eq!(candidates[0], "192.168.1.20:9000".parse().unwrap());
+        assert_eq!(candidates[1], "192.168.1.21:9000".parse().unwrap());
+        // The link-local addresses are scoped to the local link-local
+        // interface instead of being sent out unscoped.
+        assert_eq!(
+            candidates[2],
+            SocketAddr::V6(SocketAddrV6::new(
+                "fe80::f727:abc9:2280:4f3:5410:8".parse().unwrap(),
+                9000,
+                0,
+                5,
+            ))
+        );
+        assert_eq!(
+            candidates[3],
+            SocketAddr::V6(SocketAddrV6::new("fe80::4f3:5410:8".parse().unwrap(), 9000, 0, 5))
+        );
+    }
+
+    #[test]
+    fn a_link_local_address_is_scoped_to_every_local_link_interface() {
+        let links = [
+            fake_interface("en0", "fe80::1".parse().unwrap(), 5),
+            fake_interface("en1", "fe80::2".parse().unwrap(), 7),
+            fake_interface("utun0", "fe80::3".parse().unwrap(), 9),
+        ];
+        let candidates = candidate_socket_addrs(&["fe80::dead".to_string()], 9000, &links);
+
+        assert_eq!(candidates.len(), 3);
+        let scopes: HashSet<u32> = candidates
+            .iter()
+            .map(|address| match address {
+                SocketAddr::V6(v6) => v6.scope_id(),
+                SocketAddr::V4(_) => panic!("a link-local address must never become IPv4"),
+            })
+            .collect();
+        assert_eq!(scopes, HashSet::from([5, 7, 9]));
+    }
+
+    #[test]
+    fn a_link_local_address_with_no_local_link_network_stays_bare() {
+        // No local interface carries a link-local address (only IPv4 links are
+        // faked), so there is nothing to scope to and the address survives
+        // rather than vanishing silently.
+        let links = [fake_interface("en0", "192.168.1.5".parse().unwrap(), 5)];
+        let candidates = candidate_socket_addrs(&["fe80::dead".to_string()], 9000, &links);
+        assert_eq!(
+            candidates,
+            vec![SocketAddr::V6(SocketAddrV6::new(
+                "fe80::dead".parse().unwrap(),
+                9000,
+                0,
+                0,
+            ))]
+        );
+    }
+
+    #[test]
+    fn a_hand_typed_zone_is_trusted_and_not_expanded() {
+        let links = [fake_interface("en0", "fe80::1".parse().unwrap(), 5)];
+        let candidates = candidate_socket_addrs(&["fe80::dead%en0".to_string()], 9000, &links);
+        // Exactly one candidate: the user's zone, not one per interface.
+        assert_eq!(
+            candidates,
+            vec![SocketAddr::V6(SocketAddrV6::new(
+                "fe80::dead".parse().unwrap(),
+                9000,
+                0,
+                5,
+            ))]
+        );
+    }
+
+    #[test]
+    fn a_numeric_zone_is_kept_as_written() {
+        let candidates = candidate_socket_addrs(&["fe80::dead%12".to_string()], 9000, &[]);
+        assert_eq!(
+            candidates,
+            vec![SocketAddr::V6(SocketAddrV6::new(
+                "fe80::dead".parse().unwrap(),
+                9000,
+                0,
+                12,
+            ))]
+        );
+    }
+
+    #[test]
+    fn a_global_ipv6_address_passes_through_without_scoping() {
+        let candidates = candidate_socket_addrs(&["2001:db8::1".to_string()], 9000, &[]);
+        assert_eq!(
+            candidates,
+            vec![SocketAddr::V6(SocketAddrV6::new(
+                "2001:db8::1".parse().unwrap(),
+                9000,
+                0,
+                0,
+            ))]
+        );
+    }
+
+    #[test]
+    fn duplicate_advertised_addresses_are_connected_to_once() {
+        let advertised = vec![
+            "192.168.1.20".to_string(),
+            "192.168.1.20".to_string(),
+            "fe80::dead".to_string(),
+            "fe80::dead".to_string(),
+        ];
+        let links = [fake_interface("en0", "fe80::1".parse().unwrap(), 5)];
+        let candidates = candidate_socket_addrs(&advertised, 9000, &links);
+        assert_eq!(candidates.len(), 2);
+    }
+
+    #[test]
+    fn an_unreadable_advertised_address_is_skipped() {
+        let candidates = candidate_socket_addrs(&["not-an-address".to_string()], 9000, &[]);
+        assert!(candidates.is_empty());
+    }
+
+    /// A dead candidate does not stand in the way of a live one: the connect
+    /// budget races everything, so the address behind the one that answers
+    /// wins.
+    #[tokio::test]
+    async fn connect_any_reaches_a_later_candidate_when_the_first_one_is_dead() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        let dead = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let dead_port = dead.local_addr().unwrap().port();
+        drop(dead);
+
+        let accept = tokio::spawn(async move { listener.accept().await.unwrap() });
+
+        let candidates = vec![
+            SocketAddr::from((Ipv4Addr::new(127, 0, 0, 1), dead_port)),
+            SocketAddr::from((Ipv4Addr::new(127, 0, 0, 1), port)),
+        ];
+        let stream = connect_any(&candidates, Duration::from_secs(10))
+            .await
+            .expect("the live candidate must be reached");
+        drop(stream);
+
+        let (_, peer) = tokio::time::timeout(Duration::from_secs(2), accept)
+            .await
+            .expect("the listener accepts within the deadline")
+            .unwrap();
+        assert!(
+            peer.ip().is_loopback(),
+            "the connection that landed must be a loopback client, got {peer}"
+        );
+    }
+
+    /// A refusal that happens to be the only outcome still names the address,
+    /// so the error is a diagnosis instead of a shrug.
+    #[tokio::test]
+    async fn connect_any_names_the_address_when_every_candidate_refuses() {
+        let dead = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let port = dead.local_addr().unwrap().port();
+        drop(dead);
+
+        let candidates = vec![SocketAddr::from((Ipv4Addr::new(127, 0, 0, 1), port))];
+        match connect_any(&candidates, Duration::from_secs(10)).await {
+            Err(ConnectFailure::Refused { address, .. }) => {
+                assert!(address.contains("127.0.0.1"), "got: {address}");
+            }
+            other => panic!("expected a refusal, got {other:?}"),
+        }
+    }
+
+    /// The listener regains its old reachability whatever it binds with: if
+    /// the platform allows a dual-stack socket, the peer arrives through it as
+    /// a v4-mapped IPv6 address; if not, the IPv4 fallback still serves.
+    #[tokio::test]
+    async fn the_listener_serves_ipv4_through_either_family_of_bind() {
+        let listener = bind_listener(0).unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let accept = tokio::spawn(async move { listener.accept().await.unwrap() });
+        let port = addr.port();
+        let conn = tokio::net::TcpStream::connect(("127.0.0.1", port)).await;
+        assert!(conn.is_ok(), "IPv4 loopback must always reach the listener: {conn:?}");
+        drop(conn);
+
+        let (_, peer) = tokio::time::timeout(Duration::from_secs(2), accept)
+            .await
+            .expect("an IPv4 connection must be served")
+            .unwrap();
+        if addr.is_ipv6() {
+            assert!(peer.ip().is_ipv6(), "dual-stack surfaces IPv4 peers as v4-mapped, got {peer}");
+        } else {
+            assert!(peer.ip().is_ipv4(), "fallback bind stays IPv4-only, got {peer}");
         }
     }
 
