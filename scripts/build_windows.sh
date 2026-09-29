@@ -209,3 +209,4 @@ Next, on BOTH machines:
 
 Then pair: Devices -> Pair a device, and compare the safety number out loud.
 EOF
+

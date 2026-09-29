@@ -148,8 +148,19 @@ pub fn scan_roots(roots: &[PathBuf]) -> Vec<ScannedProject> {
 }
 
 /// Depth-first directory walk with the skip list applied.
+///
+/// The root is itself a candidate. Pointing a root straight at a checkout is
+/// common -- it is what a person does who has exactly one project, and it is
+/// what the settings screen produces when they browse to the folder rather than
+/// to its parent -- and the root is a repository at least as often as it is a
+/// parent of one. Walking only the children made such a root report nothing at
+/// all, which is indistinguishable from "no projects here" and left a capture
+/// with nothing in it.
+///
+/// The skip list is deliberately not applied to the root: it was configured
+/// deliberately, so it is not a `node_modules` to be walked past.
 fn walk(root: &Path, max_depth: usize) -> Vec<PathBuf> {
-    let mut out = Vec::new();
+    let mut out = vec![root.to_path_buf()];
     let mut queue: Vec<(PathBuf, usize)> = vec![(root.to_path_buf(), 0)];
 
     while let Some((dir, depth)) = queue.pop() {
@@ -373,5 +384,56 @@ mod tests {
     fn scanning_a_missing_root_is_not_an_error() {
         let results = scan_roots(&[PathBuf::from("/definitely/not/here/at/all")]);
         assert!(results.is_empty());
+    }
+
+    /// A root that is itself a checkout has to find itself.
+    ///
+    /// This is the case that produced empty transfers: the settings screen was
+    /// pointed at the repository rather than at its parent, the walk returned
+    /// only the children, no child had a `.git`, and the capture screen showed
+    /// no projects -- so a workspace was sent with nothing in it. The directory
+    /// only has to *look* like a repository for discovery, because
+    /// `read_git_summary` degrades to `None` when git cannot read it.
+    #[test]
+    fn a_root_that_is_itself_a_repository_is_found() {
+        let root = std::env::temp_dir().join("wc-scan-root-is-repo-test");
+        let inner = root.join("some-subdirectory");
+        std::fs::create_dir_all(root.join(".git")).unwrap();
+        std::fs::create_dir_all(&inner).unwrap();
+
+        let results = scan_roots(&[root.clone()]);
+
+        std::fs::remove_dir_all(&root).ok();
+
+        let found: Vec<&Path> = results.iter().map(|p| Path::new(&p.repo_root)).collect();
+        assert!(
+            found.iter().any(|p| p.ends_with("wc-scan-root-is-repo-test")),
+            "the configured root is a repository and was not reported: {found:?}"
+        );
+        assert!(
+            !found.iter().any(|p| p.ends_with("some-subdirectory")),
+            "a plain subdirectory is not a repository and must not be offered"
+        );
+    }
+
+    /// A repository nested under the root is still found, so including the root
+    /// did not come at the cost of the ordinary case.
+    #[test]
+    fn a_repository_below_the_root_is_still_found() {
+        let root = std::env::temp_dir().join("wc-scan-nested-repo-test");
+        let nested = root.join("nested");
+        std::fs::create_dir_all(nested.join(".git")).unwrap();
+
+        let results = scan_roots(&[root.clone()]);
+
+        std::fs::remove_dir_all(&root).ok();
+
+        assert!(
+            results
+                .iter()
+                .any(|p| p.repo_root.ends_with("nested")),
+            "a repository below the root was missed: {:?}",
+            results.iter().map(|p| &p.repo_root).collect::<Vec<_>>()
+        );
     }
 }
