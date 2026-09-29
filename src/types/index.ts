@@ -588,12 +588,16 @@ export interface RestoreRunRecord {
  * ignores an unauthorised push looks identical to a broken one, and the first
  * question when a workspace does not appear is whether it arrived -- so a refusal
  * comes back with the reason it was refused.
+ *
+ * `commands::receive::IncomingTransfer` — camelCase on the wire. This type exists
+ * to mirror serde's `rename_all = "camelCase"`, so the property names here are the
+ * JSON keys the backend actually emits.
  */
 export interface IncomingTransfer {
   /** The network layer's id for this transfer. Matches a `transfer_sessions` row. */
-  transfer_id: string;
+  transferId: string;
   /** Empty when the payload was refused before it could be parsed. */
-  workspace_id: string;
+  workspaceId: string;
   /**
    * For display.
    *
@@ -601,7 +605,7 @@ export interface IncomingTransfer {
    * its name could be trusted -- a name from an unverified payload is not shown
    * as though it were this device's own reading of it.
    */
-  workspace_name: string;
+  workspaceName: string;
   /**
    * The sending device's id, derived from the Noise key the handshake
    * authenticated.
@@ -609,11 +613,11 @@ export interface IncomingTransfer {
    * Never from a frame header: that is an unauthenticated string, and anything on
    * the network could put a paired device's id in one.
    */
-  sender_device_id: string;
+  senderDeviceId: string;
   /** This device's name for the sender, or the id if it has never been paired. */
-  sender_device_name: string;
+  senderDeviceName: string;
   /** Where the sender claims the workspace was captured. Usually the sender. */
-  source_device_id: string;
+  sourceDeviceId: string;
   /** Whether the manifest is now stored on this device. */
   accepted: boolean;
   /**
@@ -621,7 +625,7 @@ export interface IncomingTransfer {
    *
    * Written for a person: it says what to do next, not what gate failed.
    */
-  refusal_reason: string | null;
+  refusalReason: string | null;
   /**
    * Digest of the payload as it arrived.
    *
@@ -629,9 +633,9 @@ export interface IncomingTransfer {
    * locally sealed copy. Both are reported because the first proves what
    * travelled and the second what is stored.
    */
-  transfer_digest: string;
-  bytes_received: number;
-  received_at: string;
+  transferDigest: string;
+  bytesReceived: number;
+  receivedAt: string;
 }
 
 /**
@@ -642,19 +646,22 @@ export interface IncomingTransfer {
  * and it is the only record of a transfer that arrived, which is what makes
  * "the workspace is not in the list" answerable.
  */
+/**
+ * `commands::receive::TransferHistoryEntry` — camelCase on the wire.
+ */
 export interface TransferHistoryEntry {
   id: string;
-  workspace_id: string;
-  source_device_id: string;
+  workspaceId: string;
+  sourceDeviceId: string;
   /** Falls back to the id when this device has no row for it. */
-  source_device_name: string;
-  destination_device_id: string;
-  destination_device_name: string;
+  sourceDeviceName: string;
+  destinationDeviceId: string;
+  destinationDeviceName: string;
   status: TransferStatus | string;
   /** 0.0 to 1.0. `1.0` on completion. */
   progress: number;
-  started_at: string;
-  completed_at: string | null;
+  startedAt: string;
+  completedAt: string | null;
   error: string | null;
 }
 

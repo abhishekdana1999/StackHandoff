@@ -7,7 +7,6 @@ import {
   Edit,
   Key,
   Loader2,
-  Monitor,
   Plus,
   QrCode,
   Shield,
@@ -18,7 +17,7 @@ import {
 } from 'lucide-react';
 import { EmptyStateCard } from '@components/EmptyState';
 import { Button } from '@components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '@components/ui/Card';
+import { Card, CardContent } from '@components/ui/Card';
 import { Badge } from '@components/ui/Badge';
 import { Input } from '@components/ui/Input';
 import { Label } from '@components/ui/Label';
@@ -31,7 +30,6 @@ import {
   getDiscoveredDevices,
   getSafetyNumber,
   listPairedDevices,
-  revokePairedDevice,
   startDiscovery,
   updatePairedDevice,
   verifyPairing,
@@ -128,11 +126,6 @@ export function DevicesScreen() {
     },
   });
 
-  const revoke = useMutation({
-    mutationFn: (id: string) => revokePairedDevice(id),
-    onSuccess: invalidation,
-  });
-
   const remove = useMutation({
     mutationFn: (id: string) => deletePairedDevice(id),
     onSuccess: invalidation,
@@ -168,35 +161,6 @@ export function DevicesScreen() {
           Pair a device
         </Button>
       </div>
-
-      {/* --- This device -------------------------------------------------- */}
-      {identity.data && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Monitor className="w-4 h-4" />
-              <CardTitle>This device</CardTitle>
-              <Badge variant="accent">You</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-1 text-sm">
-            <p className="text-muted-foreground">
-              Your fingerprint is what a peer checks against its own list. Read it out when
-              pairing.
-            </p>
-            <p className="font-mono text-xs bg-muted p-2 rounded break-all">
-              {identity.data.fingerprint}
-            </p>
-            <p className="text-xs text-muted-foreground font-mono break-all">
-              Connection key: {identity.data.noisePublicKeyB64}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              The fingerprint above is derived from that connection key, because that is the only
-              key a peer holds and checks.
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {/* --- Paired list --------------------------------------------------- */}
       {paired.isLoading ? (
@@ -337,36 +301,20 @@ export function DevicesScreen() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          title="Revoke this device"
+                          title="Forget this device"
                           onClick={() => {
                             if (
                               window.confirm(
-                                `Revoke ${device.name}? It will no longer be offered as a destination, and you will have to pair it again.`
+                                `Forget ${device.name}? The pairing is removed, along with the workspaces it sent to this machine and its transfer records.`
                               )
                             ) {
-                              revoke.mutate(device.id);
+                              remove.mutate(device.id);
                             }
                           }}
                         >
-                          <Shield className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Forget this device entirely"
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `Remove ${device.name} from the device list? Its record of past transfers stays.`
-                            )
-                          ) {
-                            remove.mutate(device.id);
-                          }
-                        }}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -376,10 +324,10 @@ export function DevicesScreen() {
         </div>
       )}
 
-      {(revoke.isError || remove.isError || rename.isError) && (
+      {(remove.isError || rename.isError) && (
         <div role="alert" className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
           <p className="text-sm text-destructive">
-            {errorMessage(revoke.error ?? remove.error ?? rename.error)}
+            {errorMessage(remove.error ?? rename.error)}
           </p>
         </div>
       )}

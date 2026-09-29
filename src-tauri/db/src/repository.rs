@@ -360,9 +360,62 @@ impl DeviceRepository {
     }
 
     pub async fn delete(&self, id: &str) -> Result<()> {
+        // Several tables hold real foreign keys back to `devices(id)` and this
+        // pool enforces them, so a bare `DELETE FROM devices` fails while any
+        // of those rows remain. Remove every reference first, children before
+        // parents, in one transaction. Un-pairing a device also removes the
+        // workspaces it sent to this machine (with their own children) and its
+        // transfer and restore records; keeping them would mean keeping a row
+        // that must point at a device row that no longer exists.
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| DatabaseError::Query(e.to_string()))?;
+
+        sqlx::query(
+            "DELETE FROM workspace_files WHERE workspace_id IN \
+             (SELECT id FROM workspaces WHERE source_device_id = ?)",
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| DatabaseError::Query(e.to_string()))?;
+        sqlx::query(
+            "DELETE FROM snapshots WHERE workspace_id IN \
+             (SELECT id FROM workspaces WHERE source_device_id = ?) OR source_device_id = ?",
+        )
+        .bind(id)
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| DatabaseError::Query(e.to_string()))?;
+        sqlx::query(
+            "DELETE FROM restore_runs WHERE workspace_id IN \
+             (SELECT id FROM workspaces WHERE source_device_id = ?) OR destination_device_id = ?",
+        )
+        .bind(id)
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| DatabaseError::Query(e.to_string()))?;
+        sqlx::query(
+            "DELETE FROM transfer_sessions WHERE source_device_id = ? OR destination_device_id = ?",
+        )
+        .bind(id)
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| DatabaseError::Query(e.to_string()))?;
+        sqlx::query("DELETE FROM workspaces WHERE source_device_id = ?")
+            .bind(id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| DatabaseError::Query(e.to_string()))?;
+
         let changed = sqlx::query("DELETE FROM devices WHERE id = ?")
             .bind(id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(|e| DatabaseError::Query(e.to_string()))?
             .rows_affected();
@@ -373,6 +426,10 @@ impl DeviceRepository {
             ))
             .into());
         }
+
+        tx.commit()
+            .await
+            .map_err(|e| DatabaseError::Query(e.to_string()))?;
 
         Ok(())
     }
@@ -515,9 +572,33 @@ impl WorkspaceRepository {
     }
 
     pub async fn delete(&self, id: &str) -> Result<()> {
+        // `workspace_files`, `snapshots`, `restore_runs` and `transfer_sessions`
+        // all hold real foreign keys back to `workspaces(id)` and this pool
+        // enforces them, so a bare `DELETE FROM workspaces` fails while any of
+        // those rows exist. Remove the children first, in one transaction: the
+        // delete either fully lands or fully does not.
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| DatabaseError::Query(e.to_string()))?;
+
+        for sql in [
+            "DELETE FROM workspace_files WHERE workspace_id = ?",
+            "DELETE FROM snapshots WHERE workspace_id = ?",
+            "DELETE FROM restore_runs WHERE workspace_id = ?",
+            "DELETE FROM transfer_sessions WHERE workspace_id = ?",
+        ] {
+            sqlx::query(sql)
+                .bind(id)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| DatabaseError::Query(e.to_string()))?;
+        }
+
         let changed = sqlx::query("DELETE FROM workspaces WHERE id = ?")
             .bind(id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await
             .map_err(|e| DatabaseError::Query(e.to_string()))?
             .rows_affected();
@@ -528,6 +609,10 @@ impl WorkspaceRepository {
             ))
             .into());
         }
+
+        tx.commit()
+            .await
+            .map_err(|e| DatabaseError::Query(e.to_string()))?;
 
         Ok(())
     }
@@ -1193,5 +1278,223 @@ mod tests {
             .delete("no-such-workspace")
             .await
             .is_err());
+    }
+
+    /// Creates a peer-owned workspace with one row in every table that
+    /// `WorkspaceRepository::delete` and `DeviceRepository::delete` must clear.
+    async fn workspace_with_children(
+        workspaces: &WorkspaceRepository,
+        files: &WorkspaceFilesRepository,
+        snapshots: &SnapshotRepository,
+        runs: &RestoreRunRepository,
+        sessions: &TransferSessionRepository,
+        id: &str,
+        source_device: &str,
+    ) {
+        workspaces
+            .create(&WorkspaceRecord {
+                id: id.to_string(),
+                name: "Workspace".to_string(),
+                schema_version: 1,
+                captured_at: Utc::now(),
+                source_device_id: source_device.to_string(),
+                manifest_digest: "digest".to_string(),
+                encrypted_manifest_path: format!("/tmp/{id}.sealed.json"),
+                status: "received".to_string(),
+            })
+            .await
+            .unwrap();
+        files
+            .upsert(&WorkspaceFilesRecord {
+                workspace_id: id.to_string(),
+                encrypted_files_path: format!("/tmp/{id}.files.sealed"),
+                byte_count: 10,
+                file_count: 2,
+                archive_format: "tar".to_string(),
+            })
+            .await
+            .unwrap();
+        snapshots
+            .create(&SnapshotRecord {
+                id: format!("{id}-snap"),
+                workspace_id: id.to_string(),
+                captured_at: Utc::now(),
+                source_device_id: source_device.to_string(),
+                size_bytes: 10,
+                transfer_status: "completed".to_string(),
+                transfer_id: Some(format!("{id}-tr")),
+            })
+            .await
+            .unwrap();
+        runs
+            .create(&RestoreRunRecord {
+                id: format!("{id}-run"),
+                workspace_id: id.to_string(),
+                destination_device_id: source_device.to_string(),
+                plan_digest: "digest".to_string(),
+                approved_steps: "[]".to_string(),
+                result_summary: "{}".to_string(),
+                status: "completed".to_string(),
+                started_at: Utc::now(),
+                completed_at: Some(Utc::now()),
+            })
+            .await
+            .unwrap();
+        sessions
+            .create(&TransferSessionRecord {
+                id: format!("{id}-tr"),
+                workspace_id: id.to_string(),
+                source_device_id: source_device.to_string(),
+                destination_device_id: "local-id".to_string(),
+                status: "completed".to_string(),
+                progress: 1.0,
+                started_at: Utc::now(),
+                completed_at: Some(Utc::now()),
+                error: None,
+            })
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn deleting_a_workspace_removes_every_referencing_row() {
+        // This is the "Delete workspace" the UI offers. It used to be a bare
+        // `DELETE FROM workspaces`, which failed whenever any of the four child
+        // tables held a row for it -- which is every workspace with files, a
+        // snapshot, or a transfer record. The delete has to clear the children
+        // first, and all inside one transaction.
+        let (_db, pool) = TempDb::open("delete-workspace").await;
+        DeviceRepository::new(pool.clone())
+            .create(&device("local-id", "noise-key-1"))
+            .await
+            .unwrap();
+        DeviceRepository::new(pool.clone())
+            .create(&device("peer-id", "noise-key-2"))
+            .await
+            .unwrap();
+
+        let workspaces = WorkspaceRepository::new(pool.clone());
+        let files = WorkspaceFilesRepository::new(pool.clone());
+        let snapshots = SnapshotRepository::new(pool.clone());
+        let runs = RestoreRunRepository::new(pool.clone());
+        let sessions = TransferSessionRepository::new(pool.clone());
+
+        workspace_with_children(
+            &workspaces,
+            &files,
+            &snapshots,
+            &runs,
+            &sessions,
+            "ws-1",
+            "peer-id",
+        )
+        .await;
+
+        workspaces.delete("ws-1").await.unwrap();
+
+        assert!(workspaces.get("ws-1").await.unwrap().is_none());
+        assert!(files.get("ws-1").await.unwrap().is_none());
+        assert!(snapshots.get_by_workspace("ws-1").await.unwrap().is_empty());
+        assert!(runs.list_by_workspace("ws-1").await.unwrap().is_empty());
+        assert!(sessions.list_for_workspace("ws-1").await.unwrap().is_empty());
+        assert!(
+            DeviceRepository::new(pool.clone())
+                .get("peer-id")
+                .await
+                .unwrap()
+                .is_some(),
+            "deleting a workspace must not delete the device that sent it"
+        );
+    }
+
+    #[tokio::test]
+    async fn deleting_a_paired_device_removes_its_workspaces_and_records() {
+        // The "Forget" action on the Devices screen. Same trap as the workspace
+        // delete, one level up: `workspaces`, `snapshots`, `restore_runs` and
+        // `transfer_sessions` all hold real foreign keys to `devices(id)`, so a
+        // bare delete fails while a received workspace or a transfer record
+        // still names the device. Everything that referenced the device must go
+        // with it, while workspaces this machine captured itself stay.
+        let (_db, pool) = TempDb::open("delete-device").await;
+        DeviceRepository::new(pool.clone())
+            .create(&device("local-id", "noise-key-1"))
+            .await
+            .unwrap();
+        DeviceRepository::new(pool.clone())
+            .create(&device("peer-id", "noise-key-2"))
+            .await
+            .unwrap();
+
+        let workspaces = WorkspaceRepository::new(pool.clone());
+        let files = WorkspaceFilesRepository::new(pool.clone());
+        let snapshots = SnapshotRepository::new(pool.clone());
+        let runs = RestoreRunRepository::new(pool.clone());
+        let sessions = TransferSessionRepository::new(pool.clone());
+
+        // A workspace this machine captured: the device delete must not touch it.
+        workspace_with_children(
+            &workspaces,
+            &files,
+            &snapshots,
+            &runs,
+            &sessions,
+            "ws-mine",
+            "local-id",
+        )
+        .await;
+        // Workspaces the peer sent (received) plus a transfer without a workspace.
+        for id in ["ws-peer-1", "ws-peer-2"] {
+            workspace_with_children(
+                &workspaces,
+                &files,
+                &snapshots,
+                &runs,
+                &sessions,
+                id,
+                "peer-id",
+            )
+            .await;
+        }
+        sessions
+            .create(&TransferSessionRecord {
+                id: "tr-peer-only".to_string(),
+                workspace_id: "ws-peer-1".to_string(),
+                source_device_id: "peer-id".to_string(),
+                destination_device_id: "local-id".to_string(),
+                status: "refused".to_string(),
+                progress: 0.0,
+                started_at: Utc::now(),
+                completed_at: None,
+                error: Some("not paired".to_string()),
+            })
+            .await
+            .unwrap();
+
+        DeviceRepository::new(pool.clone())
+            .delete("peer-id")
+            .await
+            .unwrap();
+
+        let devices = DeviceRepository::new(pool.clone());
+        assert!(devices.get("peer-id").await.unwrap().is_none());
+        assert!(
+            devices.get("local-id").await.unwrap().is_some(),
+            "forgetting a peer must not forget this machine"
+        );
+
+        for id in ["ws-peer-1", "ws-peer-2"] {
+            assert!(workspaces.get(id).await.unwrap().is_none());
+            assert!(files.get(id).await.unwrap().is_none());
+        }
+        assert!(sessions.list_for_workspace("ws-peer-1").await.unwrap().is_empty());
+        assert!(
+            sessions.list().await.unwrap().iter().all(|s| s.id != "tr-peer-only"),
+            "a transfer session naming the deleted device must not survive"
+        );
+
+        // The locally captured workspace is untouched, children and all.
+        assert!(workspaces.get("ws-mine").await.unwrap().is_some());
+        assert!(files.get("ws-mine").await.unwrap().is_some());
+        assert_eq!(sessions.list_for_workspace("ws-mine").await.unwrap().len(), 1);
     }
 }

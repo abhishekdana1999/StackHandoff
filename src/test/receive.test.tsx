@@ -130,7 +130,7 @@ function banner(transferId: string): HTMLElement {
 describe('an arrival is shown to the user', () => {
   it('names the sender and says the workspace is stored', async () => {
     screenBackend({
-      get_incoming_transfers: () => [makeIncomingTransfer({ workspace_name: 'Payments Branch' })],
+      get_incoming_transfers: () => [makeIncomingTransfer({ workspaceName: 'Payments Branch' })],
     });
     renderAt();
 
@@ -145,7 +145,7 @@ describe('an arrival is shown to the user', () => {
   it('does not show a fingerprint where a name belongs', async () => {
     screenBackend({
       get_incoming_transfers: () => [
-        makeIncomingTransfer({ sender_device_id: 'AbCdEfGhIjKlMnOp', sender_device_name: "Sam's Windows PC" }),
+        makeIncomingTransfer({ senderDeviceId: 'AbCdEfGhIjKlMnOp', senderDeviceName: "Sam's Windows PC" }),
       ],
     });
     renderAt();
@@ -160,8 +160,8 @@ describe('an arrival is shown to the user', () => {
     // another one was on screen is never mentioned at all.
     screenBackend({
       get_incoming_transfers: () => [
-        makeIncomingTransfer({ transfer_id: 'tr-new', workspace_name: 'Newest' }),
-        makeIncomingTransfer({ transfer_id: 'tr-old', workspace_name: 'Older' }),
+        makeIncomingTransfer({ transferId: 'tr-new', workspaceName: 'Newest' }),
+        makeIncomingTransfer({ transferId: 'tr-old', workspaceName: 'Older' }),
       ],
     });
     renderAt();
@@ -203,10 +203,10 @@ describe('an arrival is shown to the user', () => {
 
 describe('a refusal is shown, not swallowed', () => {
   const refused = makeIncomingTransfer({
-    transfer_id: 'tr-refused',
-    workspace_name: 'Not Welcome',
+    transferId: 'tr-refused',
+    workspaceName: 'Not Welcome',
     accepted: false,
-    refusal_reason:
+    refusalReason:
       "'Not paired' has not been paired on this machine. Nothing was stored. Pair it on Devices if that is what you want.",
   });
 
@@ -305,13 +305,13 @@ describe('transfer history answers "did it get there?"', () => {
       get_transfer_history: () => [
         makeTransferHistoryEntry({
           id: 'tr-in',
-          source_device_name: "Sam's Windows PC",
-          destination_device_name: "Alex's MacBook",
+          sourceDeviceName: "Sam's Windows PC",
+          destinationDeviceName: "Alex's MacBook",
         }),
         makeTransferHistoryEntry({
           id: 'tr-out',
-          source_device_name: "Alex's MacBook",
-          destination_device_name: "Sam's Windows PC",
+          sourceDeviceName: "Alex's MacBook",
+          destinationDeviceName: "Sam's Windows PC",
         }),
       ],
     });
@@ -385,7 +385,7 @@ describe('polling', () => {
     screenBackend({
       get_incoming_transfers: () => {
         call += 1;
-        return call > 1 ? [makeIncomingTransfer({ workspace_name: 'Arrived Later' })] : [];
+        return call > 1 ? [makeIncomingTransfer({ workspaceName: 'Arrived Later' })] : [];
       },
     });
     renderAt();
@@ -427,7 +427,7 @@ describe('polling', () => {
       get_incoming_transfers: () => {
         arrivalCall += 1;
         return arrivalCall > 1
-          ? [makeIncomingTransfer({ transfer_id: 'tr-late', workspace_id: 'ws-late', workspace_name: 'Arrived Later' })]
+          ? [makeIncomingTransfer({ transferId: 'tr-late', workspaceId: 'ws-late', workspaceName: 'Arrived Later' })]
           : [];
       },
     });
@@ -450,13 +450,74 @@ describe('the arrival list is what the backend actually returns', () => {
     // An unpaired sender has no row here, so there is no name to show. The id is
     // the honest fallback; a made-up label would be worse than an id.
     const unknown: IncomingTransfer = makeIncomingTransfer({
-      sender_device_name: '5OpQ2mZ8vLdR0eXyKfJ1wA==',
-      sender_device_id: '5OpQ2mZ8vLdR0eXyKfJ1wA==',
+      senderDeviceName: '5OpQ2mZ8vLdR0eXyKfJ1wA==',
+      senderDeviceId: '5OpQ2mZ8vLdR0eXyKfJ1wA==',
     });
     screenBackend({ get_incoming_transfers: () => [unknown] });
     renderAt();
 
     const card = await waitFor(() => banner('tr-1'));
     expect(within(card).getByText(/from 5OpQ2mZ8vLdR0eXyKfJ1wA==/)).toBeInTheDocument();
+  });
+});
+
+describe('the arrival banner speaks the backend wire shape', () => {
+  it('renders an arrival in the exact camelCase JSON the backend emits', async () => {
+    // `IncomingTransfer` is serialized by Rust with `rename_all = "camelCase"`,
+    // so `transferId`, `workspaceName`, `senderDeviceName`, … are the keys that
+    // actually arrive over `invoke`. A fixture built from `makeIncomingTransfer`
+    // would track whatever the TS type says; this object is written straight
+    // against the Rust struct's serde output, so the type and the wire cannot
+    // drift silently. Every field used below (the banner name, the dismiss id,
+    // the preflight id) comes from these keys.
+    const wire: unknown = [
+      {
+        transferId: 'tr-wire',
+        workspaceId: 'ws-9',
+        workspaceName: 'Wire Shaped',
+        senderDeviceId: 'peer-9',
+        senderDeviceName: 'BISWAJITA',
+        sourceDeviceId: 'peer-9',
+        accepted: true,
+        refusalReason: null,
+        transferDigest: 'd'.repeat(64),
+        bytesReceived: 4096,
+        receivedAt: '2026-01-01T00:00:00Z',
+      },
+    ];
+    screenBackend({
+      get_incoming_transfers: () => wire as IncomingTransfer[],
+    });
+    renderAt();
+
+    const card = await waitFor(() => banner('tr-wire'));
+    expect(within(card).getByText(/'Wire Shaped' arrived from BISWAJITA/)).toBeInTheDocument();
+
+    // The dismiss sends the camelCase id over invoke, which is what the backend
+    // command parameter expects.
+    fireEvent.click(within(card).getByRole('button', { name: /Dismiss this notification/ }));
+    await waitFor(() =>
+      expect(backend.lastArgs('dismiss_incoming_transfer').transferId).toBe('tr-wire')
+    );
+  });
+});
+
+describe('acting on a successful arrival', () => {
+  it('opens preflight for the workspace that arrived', async () => {
+    // The banner's primary action must go somewhere agreed with that workspace:
+    // it navigates to `/preflight/<workspaceId>`. The manifest fetch fails here
+    // on purpose -- the error screen is unique to the preflight route, so it is
+    // the proof that navigation happened, and the requested id is the received
+    // workspace's, not whatever was selected before.
+    screenBackend({ get_incoming_transfers: () => [makeIncomingTransfer()] });
+    renderAt();
+
+    const card = await waitFor(() => banner('tr-1'));
+    fireEvent.click(within(card).getByRole('button', { name: /Open preflight/ }));
+
+    expect(
+      await screen.findByText('The workspace could not be read')
+    ).toBeInTheDocument();
+    expect(backend.lastArgs('get_manifest').workspaceId).toBe('ws-1');
   });
 });

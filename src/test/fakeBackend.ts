@@ -210,17 +210,17 @@ export function makeIncomingTransfer(
   overrides: Partial<IncomingTransfer> = {}
 ): IncomingTransfer {
   return {
-    transfer_id: 'tr-1',
-    workspace_id: 'ws-1',
-    workspace_name: 'Demo',
-    sender_device_id: 'peer-1',
-    sender_device_name: "Alex's MacBook",
-    source_device_id: 'peer-1',
+    transferId: 'tr-1',
+    workspaceId: 'ws-1',
+    workspaceName: 'Demo',
+    senderDeviceId: 'peer-1',
+    senderDeviceName: "Alex's MacBook",
+    sourceDeviceId: 'peer-1',
     accepted: true,
-    refusal_reason: null,
-    transfer_digest: 'b'.repeat(64),
-    bytes_received: 2048,
-    received_at: '2026-01-01T00:00:00Z',
+    refusalReason: null,
+    transferDigest: 'b'.repeat(64),
+    bytesReceived: 2048,
+    receivedAt: '2026-01-01T00:00:00Z',
     ...overrides,
   };
 }
@@ -230,15 +230,15 @@ export function makeTransferHistoryEntry(
 ): TransferHistoryEntry {
   return {
     id: 'tr-1',
-    workspace_id: 'ws-1',
-    source_device_id: 'peer-1',
-    source_device_name: "Alex's MacBook",
-    destination_device_id: 'FINGERPRINT-1',
-    destination_device_name: 'This device',
+    workspaceId: 'ws-1',
+    sourceDeviceId: 'peer-1',
+    sourceDeviceName: "Alex's MacBook",
+    destinationDeviceId: 'FINGERPRINT-1',
+    destinationDeviceName: 'This device',
     status: 'completed',
     progress: 1,
-    started_at: '2026-01-01T00:00:00Z',
-    completed_at: '2026-01-01T00:00:01Z',
+    startedAt: '2026-01-01T00:00:00Z',
+    completedAt: '2026-01-01T00:00:01Z',
     error: null,
     ...overrides,
   };

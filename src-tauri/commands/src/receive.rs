@@ -1190,5 +1190,69 @@ mod tests {
         state.arrivals.lock().await.retain(|a| a.transfer_id != "second");
         assert_eq!(state.arrivals.lock().await.len(), 1);
     }
+
+    /// The arrival crosses `invoke` as JSON, so the shape this struct serializes
+    /// to is a contract with the frontend. The TS `IncomingTransfer` type is
+    /// written against these exact keys -- any change here is a breaking change
+    /// for the banner's name, dismiss id, and preflight link, and must land with
+    /// it. (This is the test that would have caught the original snake_case
+    /// interface before the banner ever showed an empty sender name.)
+    #[test]
+    fn incoming_transfer_serializes_camel_case() {
+        let transfer = IncomingTransfer {
+            transfer_id: "tr-1".into(),
+            workspace_id: "ws-1".into(),
+            workspace_name: "Demo".into(),
+            sender_device_id: "peer-1".into(),
+            sender_device_name: "Alex's MacBook".into(),
+            source_device_id: "peer-1".into(),
+            accepted: true,
+            refusal_reason: Some("nope".into()),
+            transfer_digest: "digest".into(),
+            bytes_received: 2048,
+            received_at: chrono::Utc::now(),
+        };
+
+        let value: serde_json::Value =
+            serde_json::to_value(&transfer).expect("serializes to JSON");
+        let obj = value.as_object().expect("a transfer is a JSON object");
+
+        for key in [
+            "transferId",
+            "workspaceId",
+            "workspaceName",
+            "senderDeviceId",
+            "senderDeviceName",
+            "sourceDeviceId",
+            "refusalReason",
+            "transferDigest",
+            "bytesReceived",
+            "receivedAt",
+        ] {
+            assert!(
+                obj.contains_key(key),
+                "IncomingTransfer must serialize key '{key}' -- the frontend reads \
+                 `arrival.{key}` and a missing key renders undefined"
+            );
+        }
+        for stray in [
+            "transfer_id",
+            "workspace_id",
+            "workspace_name",
+            "sender_device_id",
+            "sender_device_name",
+            "source_device_id",
+            "refusal_reason",
+            "transfer_digest",
+            "bytes_received",
+            "received_at",
+        ] {
+            assert!(
+                !obj.contains_key(stray),
+                "IncomingTransfer must not serialize a snake_case key '{stray}'; \
+                 the frontend reads the camelCase spelling"
+            );
+        }
+    }
 }
 

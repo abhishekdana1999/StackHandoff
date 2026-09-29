@@ -134,7 +134,7 @@ function ArrivalBanner({
       // case that needs attention; the accepted case is `polite`.
       role="status"
       aria-live={arrival.accepted ? 'polite' : 'assertive'}
-      data-testid={`arrival-${arrival.transfer_id}`}
+      data-testid={`arrival-${arrival.transferId}`}
       data-accepted={arrival.accepted ? 'true' : 'false'}
       className={`flex items-start gap-3 p-4 rounded-lg border ${
         arrival.accepted
@@ -151,7 +151,7 @@ function ArrivalBanner({
         {arrival.accepted ? (
           <>
             <p className="font-medium">
-              '{arrival.workspace_name}' arrived from {arrival.sender_device_name}
+              '{arrival.workspaceName}' arrived from {arrival.senderDeviceName}
             </p>
             <p className="text-sm text-muted-foreground mt-0.5">
               Stored on this machine, sealed with this machine's key. It is ready for
@@ -161,10 +161,10 @@ function ArrivalBanner({
         ) : (
           <>
             <p className="font-medium text-destructive">
-              A workspace from {arrival.sender_device_name} was not accepted
+              A workspace from {arrival.senderDeviceName} was not accepted
             </p>
             <p className="text-sm text-destructive/90 mt-0.5">
-              {arrival.refusal_reason}
+              {arrival.refusalReason}
             </p>
           </>
         )}
@@ -237,10 +237,10 @@ export function WorkspacesScreen() {
   useEffect(() => {
     const arrivals = incoming.data ?? [];
     const landed = arrivals.filter(
-      (a) => a.accepted && a.workspace_id && !seenArrivals.current.has(a.transfer_id)
+      (a) => a.accepted && a.workspaceId && !seenArrivals.current.has(a.transferId)
     );
     for (const arrival of arrivals) {
-      seenArrivals.current.add(arrival.transfer_id);
+      seenArrivals.current.add(arrival.transferId);
     }
     if (landed.length > 0) {
       void queryClient.invalidateQueries({ queryKey: ['workspaces'] });
@@ -307,17 +307,17 @@ export function WorkspacesScreen() {
         <div className="space-y-2">
           {arrivals.map((arrival) => (
             <ArrivalBanner
-              key={arrival.transfer_id}
+              key={arrival.transferId}
               arrival={arrival}
-              onDismiss={() => dismiss.mutate(arrival.transfer_id)}
+              onDismiss={() => dismiss.mutate(arrival.transferId)}
               onOpen={() => {
                 // An accepted arrival has a workspace to work on, so it goes
                 // straight to preflight -- that is the next step, and the only
                 // thing a user wanting to use what just arrived would do next. A
                 // refusal has no workspace, so it goes to the list, which is where
                 // the absence of one is visible.
-                if (arrival.accepted && arrival.workspace_id) {
-                  navigate(`/preflight/${arrival.workspace_id}`);
+                if (arrival.accepted && arrival.workspaceId) {
+                  navigate(`/preflight/${arrival.workspaceId}`);
                 } else {
                   setActiveTab('workspaces');
                 }
@@ -576,11 +576,11 @@ export function WorkspacesScreen() {
                         {(transfers.data ?? []).map((transfer) => (
                           <TableRow key={transfer.id}>
                             <TableCell className="text-sm">
-                              {transfer.source_device_name} →{' '}
-                              {transfer.destination_device_name}
+                              {transfer.sourceDeviceName} →{' '}
+                              {transfer.destinationDeviceName}
                             </TableCell>
                             <TableCell className="text-sm">
-                              {new Date(transfer.started_at).toLocaleString()}
+                              {new Date(transfer.startedAt).toLocaleString()}
                             </TableCell>
                             <TableCell>
                               <Badge

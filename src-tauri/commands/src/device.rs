@@ -3,16 +3,30 @@
 use chrono::Utc;
 use tauri::{command, State};
 use workspace_clone_core::{device::PairedDevice, NetworkError, Result, WorkspaceError};
-use workspace_clone_crypto::noise::PublicKey;
+use workspace_clone_crypto::{keys::KeyStorage, noise::PublicKey};
 use workspace_clone_db::{models::DeviceRecord, repository::DeviceRepository, DbPool};
+
+/// The id of this machine, as its peers would derive it from its advertised key.
+///
+/// The local device keeps a row in the `devices` table (it has to: a foreign
+/// key like `workspaces.source_device_id` needs a device row to point at), so a
+/// list of "devices on this machine" needs this id to tell it and its peers
+/// apart.
+fn local_device_id() -> Result<String> {
+    let bundle = KeyStorage::load_local_keys()?;
+    let noise = bundle.noise_key()?;
+    workspace_clone_core::crypto::fingerprint_from_connection_key_b64(&noise.public_key_b64())
+}
 
 #[command]
 pub async fn list_paired_devices(pool: State<'_, DbPool>) -> Result<Vec<PairedDevice>> {
     let repo = DeviceRepository::new(pool.inner().clone());
+    let local_id = local_device_id()?;
     let devices = repo.list(false).await?;
 
     Ok(devices
         .into_iter()
+        .filter(|d| d.id != local_id)
         .map(|d| {
             let trust_scopes = d.trust_scopes_list();
             PairedDevice {
