@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -224,6 +224,28 @@ export function WorkspacesScreen() {
     queryFn: () => getIncomingTransfers(),
     refetchInterval: ARRIVALS_POLL_MS,
   });
+
+  // The workspace list is fetched once when the screen mounts. A workspace that
+  // arrives while this screen is open is stored by the backend without this
+  // window knowing, so the only evidence it exists is the arrival banner —
+  // and until it is refetched, the list above still shows the pre-arrival
+  // state. That was the "I can see the green banner, my workspace is just not
+  // in the list" gap; it only disappeared when the user navigated away and
+  // back, which remounted the screen. The arrivals poll is the signal that
+  // something new and accepted landed, so that is when the list refetches.
+  const seenArrivals = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const arrivals = incoming.data ?? [];
+    const landed = arrivals.filter(
+      (a) => a.accepted && a.workspace_id && !seenArrivals.current.has(a.transfer_id)
+    );
+    for (const arrival of arrivals) {
+      seenArrivals.current.add(arrival.transfer_id);
+    }
+    if (landed.length > 0) {
+      void queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+    }
+  }, [incoming.data, queryClient]);
 
   const dismiss = useMutation({
     mutationFn: (transferId: string) => dismissIncomingTransfer(transferId),

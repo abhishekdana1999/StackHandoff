@@ -400,6 +400,49 @@ describe('polling', () => {
     // Guard against the assertion above passing because something else refetched.
     expect(Date.now() - before).toBeLessThan(ARRIVALS_POLL_MS * 3);
   });
+
+  it('puts a workspace that arrived after load into the list without a remount', async () => {
+    // The list and the arrivals are both refetched here: the list started
+    // before the transfer existed, and the arrival is what tells the screen to
+    // ask for it again. Before the invalidation, the new workspace stayed
+    // invisible until a navigation remounted the screen — the "I see the green
+    // banner but my workspace is not in the list" gap.
+    const lateWorkspace = {
+      id: 'ws-late',
+      name: 'Arrived Later',
+      schema_version: 1,
+      captured_at: '2026-01-01T00:00:00Z',
+      source_device_id: 'peer-1',
+      manifest_digest: 'c'.repeat(64),
+      encrypted_manifest_path: '/tmp/late.json',
+      status: 'received',
+    };
+    let listCall = 0;
+    let arrivalCall = 0;
+    screenBackend({
+      list_workspaces: () => {
+        listCall += 1;
+        return listCall > 1 ? [...WORKSPACES, lateWorkspace] : WORKSPACES;
+      },
+      get_incoming_transfers: () => {
+        arrivalCall += 1;
+        return arrivalCall > 1
+          ? [makeIncomingTransfer({ transfer_id: 'tr-late', workspace_id: 'ws-late', workspace_name: 'Arrived Later' })]
+          : [];
+      },
+    });
+    renderAt();
+
+    await waitFor(() => expect(backend.callsTo('list_workspaces').length).toBeGreaterThan(0));
+    expect(screen.queryByText('Arrived Later')).not.toBeInTheDocument();
+
+    expect(
+      await screen.findByText('Arrived Later', undefined, { timeout: ARRIVALS_POLL_MS * 3 })
+    ).toBeInTheDocument();
+    // The arrival had to provoke a second fetch of the list; the banner alone
+    // would have rendered without one.
+    expect(backend.callsTo('list_workspaces').length).toBeGreaterThan(1);
+  });
 });
 
 describe('the arrival list is what the backend actually returns', () => {

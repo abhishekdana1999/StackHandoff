@@ -629,6 +629,33 @@ version, and what it actually found. The common ones:
   applications this build has no adapter for. It is reported as unknown, not as
   a pass, so it will show as outstanding.
 
+### A received workspace restores as "nothing selected"
+
+Preflight on this machine shows no projects and no files to restore, but the
+receiver expected the sender's selected content.
+
+This is almost always the **capture**, not the transfer: the workspace the
+sender shipped contained no project entries. A capture with only the Terminal
+adapter ticked (or an empty project selection) produces a manifest with zero
+projects, and zero projects means no file archive is carried at all — the
+restore plan then legitimately has nothing but the adapter steps.
+
+Confirm on the **sending** machine:
+
+1. Open the capture screen and check **Projects**: it must show repositories it
+   found. The scan looks in `~/projects` and `~/Documents` by default. If your
+   code lives elsewhere, add the folder in **Settings → Project locations**, then
+   rescan.
+2. Tick the projects you want **and** the adapters. Terminal working directories
+   come from the selected projects, so a terminal session with no projects has no
+   folders.
+3. Re-capture, then send again. The receiving machine's preflight will now list
+   the projects and a file step.
+
+The arrival banner is the receiving side's own reading of the manifest, so this
+also applies when a banner looks emptier than expected — check the sender's
+capture first.
+
 ### Both machines are on the same Wi-Fi but discovery still fails
 
 Test the network directly. `ping` the Mac from the laptop and vice versa. If
@@ -905,7 +932,7 @@ in your tree; it is a leftover and will not match current source.
 | `core`, `crypto`, `db`, `preflight`, `restore` units | 159           | pure logic: manifest validation, crypto, repositories, requirement checks, restore execution                          |
 | `files` units                                                | 13            | snapshot denylist + caps, archive round-trips, hostile extraction, the wire envelope                                  |
 | `adapters` units                                             | 62            | capture, detection, path redaction, the safety predicates                                                             |
-| `network` units                                              | 79            | handshake, framing, digest, cancellation, discovery and naming, connect-address selection                            |
+| `network` units                                              | 79            | handshake, framing, digest, cancellation, discovery and naming, connect-address selection                             |
 | `network/tests/loopback_transfer.rs`                         | 8             | real TCP, real Noise_IK, two services in one process                                                                  |
 | `commands` unit tests                                        | 66            | authorization gates, refusals, validation, platform naming, destination resolution                                    |
 | **`commands/tests/two_device_transfer.rs`**            | **12**  | **the whole two-machine path, files included**                                                                  |
@@ -1357,4 +1384,4 @@ but not the native frame. **Launch it on a machine where you can see it.**
 **Single device per install.** There is no multi-user or shared-installation
 model. Each user has their own app folder and their own keys.
 
-Add this to check if this works
+Remove Old Content
