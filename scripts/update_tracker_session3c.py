@@ -6,7 +6,7 @@ import openpyxl
 
 NOW = dt.datetime(2026, 9, 28, 22, 10).strftime("%Y-%m-%d %H:%M")
 
-wb = openpyxl.load_workbook("WorkspaceClone_Tracking.xlsx")
+wb = openpyxl.load_workbook("docs/WorkspaceClone_Tracking.xlsx")
 ws = wb["Logs"]
 
 
@@ -36,5 +36,5 @@ ws.append(
     )
 )
 
-wb.save("WorkspaceClone_Tracking.xlsx")
+wb.save("docs/WorkspaceClone_Tracking.xlsx")
 print("saved:", ws.max_row - 1, "log rows")

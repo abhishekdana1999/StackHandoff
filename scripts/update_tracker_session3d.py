@@ -9,7 +9,7 @@ import openpyxl
 NOW = dt.datetime(2026, 9, 28, 23, 10).strftime("%Y-%m-%d %H:%M")
 TODAY = "2026-09-28"
 
-wb = openpyxl.load_workbook("WorkspaceClone_Tracking.xlsx")
+wb = openpyxl.load_workbook("docs/WorkspaceClone_Tracking.xlsx")
 
 # ---------------------------------------------------------------------------
 # Bugs
@@ -222,7 +222,7 @@ for row in range(2, overview.max_row + 1):
         )
         overview.cell(row=row, column=4).value = f"{TODAY} 23:10"
 
-wb.save("WorkspaceClone_Tracking.xlsx")
+wb.save("docs/WorkspaceClone_Tracking.xlsx")
 print("saved:")
 print("  bugs rows    :", bugs.max_row - 1)
 print("  errors rows  :", errors.max_row - 1)

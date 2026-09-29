@@ -25,7 +25,7 @@ import openpyxl
 NOW = dt.datetime(2026, 9, 30, 10, 30).strftime("%Y-%m-%d %H:%M")
 TODAY = "2026-09-30"
 
-wb = openpyxl.load_workbook("WorkspaceClone_Tracking.xlsx")
+wb = openpyxl.load_workbook("docs/WorkspaceClone_Tracking.xlsx")
 
 # ---------------------------------------------------------------------------
 # Bugs
@@ -241,7 +241,7 @@ for row in range(2, features.max_row + 1):
             f"{existing} | {notes[fid]}" if existing else notes[fid]
         )
 
-wb.save("WorkspaceClone_Tracking.xlsx")
+wb.save("docs/WorkspaceClone_Tracking.xlsx")
 print("saved:")
 print("  bugs rows    :", bugs.max_row - 1)
 print("  runs rows    :", runs.max_row - 1)

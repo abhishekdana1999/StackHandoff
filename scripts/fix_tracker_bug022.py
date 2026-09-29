@@ -36,7 +36,7 @@ import openpyxl
 TODAY = "2026-09-28"
 NOW = "2026-09-28 22:05"
 
-wb = openpyxl.load_workbook("WorkspaceClone_Tracking.xlsx")
+wb = openpyxl.load_workbook("docs/WorkspaceClone_Tracking.xlsx")
 ws = wb["Tasks"]
 
 SECOND_START = 42  # 1-based sheet row: first row of the second block
@@ -125,5 +125,5 @@ for row in bugs.iter_rows(min_row=2):
 else:
     raise SystemExit("BUG-022 not found")
 
-wb.save("WorkspaceClone_Tracking.xlsx")
-print("saved: WorkspaceClone_Tracking.xlsx")
+wb.save("docs/WorkspaceClone_Tracking.xlsx")
+print("saved: docs/WorkspaceClone_Tracking.xlsx")

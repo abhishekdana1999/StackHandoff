@@ -375,7 +375,7 @@ style_data(ws10, 2, len(log_data) + 1, len(log_headers))
 auto_width(ws10, len(log_headers), max_width=60)
 
 # Save
-output_path = "/Users/abhishekdana/Documents/openshorts/WorkspaceClone_Tracking.xlsx"
+output_path = "/Users/abhishekdana/Documents/openshorts/docs/WorkspaceClone_Tracking.xlsx"
 wb.save(output_path)
 print(f"Tracking file created: {output_path}")
 print(f"Sheets: {wb.sheetnames}")

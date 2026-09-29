@@ -746,6 +746,12 @@ own key when they arrive there.
 
 ```
 openshorts/                     ← frontend + Rust workspace + tracker
+├── docs/                       ← documentation + the tracking workbook
+│   ├── AI_HANDOFF.md           ← handoff notes for the next agent session
+│   ├── DEVELOPER_GUIDE.md      ← this file
+│   ├── ISSUE_WINDOWS_HANDOFF_2026-09-29.md
+│   └── WorkspaceClone_Tracking.xlsx
+├── scripts/                    ← tracker updater, parity + token checkers
 ├── src/                        ← React + TypeScript
 │   ├── lib/ipc.ts              ← THE ONLY FILE THAT NAMES A TAURI COMMAND
 │   ├── types/index.ts          ← TypeScript mirror of every Rust payload
@@ -759,22 +765,20 @@ openshorts/                     ← frontend + Rust workspace + tracker
 │   │   └── ui/                 ← Button, Card, Badge, Dialog, Tabs
 │   └── test/                   ← fake backend + route, theme and receive tests
 ├── tailwind.config.js          ← maps tokens to utilities; darkMode: 'class'
-├── src-tauri/                  ← Rust workspace
-│   ├── Cargo.toml              ← virtual manifest, no [package]
-│   ├── core/                   ← types: manifest, device, crypto primitives
-│   ├── crypto/                 ← Noise, AEAD, key storage, fingerprints
-│   ├── db/                     ← schema, migrations, repositories
-│   ├── network/                ← Noise_IK transport, mDNS discovery
-│   ├── adapters/               ← per-tool detectors (node, git, gh, …)
-│   ├── preflight/              ← "what is missing here?"
-│   ├── restore/                ← planning and execution
-│   ├── commands/               ← Tauri commands = the API surface
-│   └── app/                    ← the binary
-│       ├── src/lib.rs          ← the command registry (generate_handler!)
-│       ├── tauri.conf.json     ← must be HERE, not in src-tauri/ (see §15)
-│       └── capabilities/       ← must be HERE, not in src-tauri/ (see §15)
-├── scripts/                    ← tracker updater, parity + token checkers
-└── WorkspaceClone_Tracking.xlsx
+└── src-tauri/                  ← Rust workspace
+    ├── Cargo.toml              ← virtual manifest, no [package]
+    ├── core/                   ← types: manifest, device, crypto primitives
+    ├── crypto/                 ← Noise, AEAD, key storage, fingerprints
+    ├── db/                     ← schema, migrations, repositories
+    ├── network/                ← Noise_IK transport, mDNS discovery
+    ├── adapters/               ← per-tool detectors (node, git, gh, …)
+    ├── preflight/              ← "what is missing here?"
+    ├── restore/                ← planning and execution
+    ├── commands/               ← Tauri commands = the API surface
+    └── app/                    ← the binary
+        ├── src/lib.rs          ← the command registry (generate_handler!)
+        ├── tauri.conf.json     ← must be HERE, not in src-tauri/ (see §15)
+        └── capabilities/       ← must be HERE, not in src-tauri/ (see §15)
 ```
 
 > **Dead files, still on disk:** `src-tauri/build.rs` and `src-tauri/src/`

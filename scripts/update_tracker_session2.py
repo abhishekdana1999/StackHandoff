@@ -36,7 +36,7 @@ import openpyxl
 NOW = dt.datetime(2026, 9, 27, 17, 40).strftime("%Y-%m-%d %H:%M")
 TODAY = "2026-09-27"
 
-wb = openpyxl.load_workbook("WorkspaceClone_Tracking.xlsx")
+wb = openpyxl.load_workbook("docs/WorkspaceClone_Tracking.xlsx")
 
 
 def append(sheet, rows):
@@ -1060,9 +1060,9 @@ append(
     ],
 )
 
-wb.save("WorkspaceClone_Tracking.xlsx")
+wb.save("docs/WorkspaceClone_Tracking.xlsx")
 
 print()
 for sheet in wb.sheetnames:
     print(f"  {sheet:12} {wb[sheet].max_row - 1:4} rows")
-print("saved: WorkspaceClone_Tracking.xlsx")
+print("saved: docs/WorkspaceClone_Tracking.xlsx")

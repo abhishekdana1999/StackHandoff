@@ -14,7 +14,7 @@ import openpyxl
 
 NOW = dt.datetime(2026, 9, 27, 16, 20).strftime("%Y-%m-%d %H:%M")
 
-wb = openpyxl.load_workbook("WorkspaceClone_Tracking.xlsx")
+wb = openpyxl.load_workbook("docs/WorkspaceClone_Tracking.xlsx")
 
 
 def append(sheet, rows):
@@ -551,7 +551,7 @@ for row in ws.iter_rows(min_row=2):
         existing = notes_col.value or ""
         notes_col.value = f"{existing} | {ui_notes[fid]}" if existing else ui_notes[fid]
 
-wb.save("WorkspaceClone_Tracking.xlsx")
+wb.save("docs/WorkspaceClone_Tracking.xlsx")
 
 print("Bugs appended:     ", len(bugs))
 print("Errors appended:   ", len(errors))
@@ -559,4 +559,4 @@ print("Runs appended:     ", len(runs))
 print("Logs appended:     ", len(logs))
 print("Decisions appended:", len(decisions))
 print("Overview rows:     ", wb["Overview"].max_row)
-print("saved: WorkspaceClone_Tracking.xlsx")
+print("saved: docs/WorkspaceClone_Tracking.xlsx")
