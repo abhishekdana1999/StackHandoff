@@ -26,7 +26,7 @@ use tracing::{debug, info, warn};
 use workspace_clone_adapters::{
     AdapterRegistry, LocalContext, PortableContext, RestoreAction, RestoreActionType,
 };
-use workspace_clone_core::manifest::{Application, WorkspaceManifest};
+use workspace_clone_core::manifest::{Application, Project, WorkspaceManifest};
 use workspace_clone_core::{RestoreError, Result, WorkspaceError};
 
 /// The adapter that owns repository verification.
@@ -151,6 +151,22 @@ impl RestorePlanner {
         //     Projects without a destination get no step: files cannot land
         //     anywhere the user never approved.
         for project in &manifest.projects {
+            // A git project whose capture recorded the working-tree delta is
+            // restored by *applying that delta* to the destination checkout
+            // (the `git-apply-<id>` step the git adapter plans). Copying the
+            // whole tree over the checkout instead is what made `git status`
+            // on the destination list every tracked file as modified: file
+            // modes do not survive the archive, and the baseline there may
+            // differ. So the tree is not copied for those projects; for a
+            // clean repo -- or one whose dirty state could not be captured --
+            // the whole-tree copy stays, exactly as before.
+            if restored_by_git_patch(project) {
+                debug!(
+                    "{}: git delta captured, restoring via the patch instead of the tree",
+                    project.name
+                );
+                continue;
+            }
             let Some(path) = destinations.get(&project.id) else {
                 continue;
             };
@@ -373,6 +389,23 @@ impl RestorePlan {
             .map(|a| a.id.clone())
             .collect()
     }
+}
+
+/// Whether a project's content is restored via the git patch its capture
+/// recorded, rather than by copying the whole tree out of the archive.
+///
+/// A dirty git repo is restored by applying its delta to the destination
+/// checkout, so `git status` there shows exactly the source's uncommitted
+/// changes. Copying the whole tree instead made every tracked file look
+/// modified (file modes are not carried, and the destination baseline may
+/// differ). A clean repo -- or one whose dirty state could not be captured --
+/// keeps the whole-tree copy.
+fn restored_by_git_patch(project: &Project) -> bool {
+    project
+        .git
+        .as_ref()
+        .and_then(|g| g.patch.as_deref())
+        .is_some_and(|patch| !patch.trim().is_empty())
 }
 
 /// Add a destination path to an action, recording when there isn't one.
@@ -832,8 +865,27 @@ mod tests {
                 commit: Some("abc123".into()),
                 dirty_worktree: false,
                 dirty_state_captured: false,
+                patch: None,
             }),
         }
+    }
+
+    /// A project that captured its working-tree delta the way the git adapter
+    /// now does for a dirty repository.
+    fn project_with_patch(id: &str, name: &str, bucket: &str) -> Project {
+        let mut p = project(id, name, bucket);
+        p.git = Some(workspace_clone_core::manifest::GitInfo {
+            remote_hint: Some("git@github.com:acme/demo.git".into()),
+            branch: "main".into(),
+            commit: Some("abc123".into()),
+            dirty_worktree: true,
+            dirty_state_captured: true,
+            patch: Some(
+                "diff --git a/f.txt b/f.txt\nindex 1111111..2222222 100644\n--- a/f.txt\n+++ b/f.txt\n@@ -1 +1,2 @@\n base\n+change\n"
+                    .into(),
+            ),
+        });
+        p
     }
 
     fn vscode_app(project_id: &str) -> Application {
@@ -966,6 +1018,62 @@ mod tests {
         );
         assert_eq!(check.adapter_id, "git");
         assert!(check.dependencies.contains(&"map-path-p1".to_string()));
+    }
+
+    #[test]
+    fn a_patched_git_project_restores_via_the_delta_and_never_copies_the_tree() {
+        let manifest = manifest_with(vec![project_with_patch("p1", "demo", "code")], vec![]);
+        let ctx = context();
+        let request =
+            PlanRequest::new(&manifest, &ctx).with_root("code", PathBuf::from("/tmp/wc-code"));
+
+        let plan = run(planner().generate_plan(&request)).unwrap();
+        let ids: Vec<&str> = plan.steps.iter().map(|s| s.id.as_str()).collect();
+
+        assert!(ids.contains(&"git-apply-p1"), "{ids:?}");
+        assert!(
+            !ids.contains(&"extract-files-p1"),
+            "the tree must not be copied over the checkout when a delta exists: {ids:?}"
+        );
+        assert!(ids.contains(&"map-path-p1"), "{ids:?}");
+        assert!(ids.contains(&"git-check-p1"), "{ids:?}");
+
+        let apply = plan
+            .steps
+            .iter()
+            .find(|s| s.id == "git-apply-p1")
+            .unwrap();
+        assert_eq!(apply.adapter_id, "git");
+        assert!(
+            apply.config["patch"].as_str().is_some(),
+            "the apply step must carry the captured delta"
+        );
+        assert_eq!(
+            apply.config["destination_path"],
+            serde_json::json!("/tmp/wc-code"),
+            "the planner must attach the resolved destination like any other action"
+        );
+        assert!(
+            apply.dependencies.contains(&"map-path-p1".to_string()),
+            "the apply must run after the mapping step"
+        );
+    }
+
+    #[test]
+    fn an_unpatched_git_project_keeps_the_whole_tree_copy() {
+        let manifest = manifest_with(vec![project("p1", "demo", "code")], vec![]);
+        let ctx = context();
+        let request =
+            PlanRequest::new(&manifest, &ctx).with_root("code", PathBuf::from("/tmp/wc-code"));
+
+        let plan = run(planner().generate_plan(&request)).unwrap();
+        let ids: Vec<&str> = plan.steps.iter().map(|s| s.id.as_str()).collect();
+
+        assert!(ids.contains(&"extract-files-p1"), "{ids:?}");
+        assert!(
+            !ids.contains(&"git-apply-p1"),
+            "a clean repo has no delta to apply: {ids:?}"
+        );
     }
 
     #[test]

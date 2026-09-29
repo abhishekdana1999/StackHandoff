@@ -72,7 +72,19 @@ pub struct GitInfo {
     pub branch: String,
     pub commit: Option<String>,
     pub dirty_worktree: bool,
+    /// Whether the *contents* of the dirty worktree were captured, as a
+    /// git-applyable patch in [`Self::patch`]. This is the flag the old builds
+    /// used to mean "the rest of you should not exist"; now a clean worktree
+    /// also leaves it `false`, so a restore step knows there is no delta to
+    /// apply.
     pub dirty_state_captured: bool,
+    /// The working-tree delta vs `commit`, produced by the capture device as
+    /// `git diff HEAD` plus untracked non-ignored files, in a shape `git apply`
+    /// accepts. `None` when the worktree was clean or the delta could not be
+    /// produced. Untrusted input on restore: it is applied with `git apply`,
+    /// whose path validation keeps every write inside the destination.
+    #[serde(default)]
+    pub patch: Option<String>,
 }
 
 /// Application to open/restore

@@ -290,6 +290,29 @@ fn remove_manifest(id: &str) {
     }
 }
 
+/// Run git in `cwd`, asserting it succeeded, and return stdout as text.
+fn git(cwd: &std::path::Path, args: &[&str]) -> String {
+    let out = std::process::Command::new("git")
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .expect("git must be installed to run the transfer test");
+    assert!(
+        out.status.success(),
+        "git {args:?} failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8(out.stdout).expect("git output must be text")
+}
+
+/// `git status --short`, one string per changed path.
+fn git_status_short(repo: &std::path::Path) -> Vec<String> {
+    git(repo, &["status", "--short"])
+        .lines()
+        .map(|l| l.to_string())
+        .collect()
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_workspace_sent_from_one_machine_is_stored_and_readable_on_the_other() {
     // The test that covers the whole point of the application.
@@ -472,6 +495,160 @@ async fn a_workspace_with_files_arrives_with_its_archive_and_restores() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_dirty_git_repo_arrives_with_its_delta_and_restores_to_the_exact_change() {
+    // The story that started this feature: one file changed on the Mac, and a
+    // restore on the other machine must leave the destination checkout showing
+    // exactly that one change in `git status` -- not every tracked file listed
+    // as modified by a whole-tree copy that strips the executable modes.
+    let mac = Machine::new("mac-git").await;
+    let windows = Machine::new("windows-git").await;
+    mac.trust(&windows, vec![TrustScope::ReceiveWorkspaces]).await;
+    windows.trust(&mac, vec![TrustScope::SendWorkspaces]).await;
+    windows.start_accepting();
+
+    // A source repository with one committed file, then one uncommitted change
+    // and one new untracked file: the user's delta.
+    let root = std::env::temp_dir().join(format!(
+        "wc-e2e-git-{}-{}",
+        std::process::id(),
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    ));
+    let base = root.join("base");
+    std::fs::create_dir_all(&base).unwrap();
+    git(&base, &["init", "-q", "-b", "main"]);
+    git(&base, &["config", "user.email", "e2e@test"]);
+    git(&base, &["config", "user.name", "E2E"]);
+    std::fs::write(base.join("note.txt"), "one line\n").unwrap();
+    git(&base, &["add", "-A"]);
+    git(&base, &["commit", "-qm", "base"]);
+    std::fs::write(base.join("note.txt"), "one line\nchanged on the Mac\n").unwrap();
+    std::fs::write(base.join("new.txt"), "new file\n").unwrap();
+
+    // The delta a capture records: `git diff HEAD` plus a new-file hunk for
+    // the untracked file -- the exact recipe the git adapter uses. Its exit
+    // code is 1 ("differences found"), so this path accepts that.
+    let patch = git(&base, &["diff", "HEAD", "--binary", "--no-color", "--no-ext-diff"])
+        + &(|| {
+            let out = std::process::Command::new("git")
+                .args([
+                    "diff",
+                    "--no-index",
+                    "--binary",
+                    "--no-color",
+                    "--no-ext-diff",
+                    "/dev/null",
+                    "new.txt",
+                ])
+                .current_dir(&base)
+                .output()
+                .expect("git must run");
+            assert!(
+                out.status.code().is_some_and(|c| c == 0 || c == 1),
+                "the file diff must run: {}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+            String::from_utf8(out.stdout).expect("git output must be text")
+        })();
+
+    let workspace_id = unique_id("git-delta");
+    let mut manifest = manifest_for(&workspace_id, "Git Delta", &mac);
+    manifest.projects = vec![Project {
+        id: "p1".to_string(),
+        name: "delta".to_string(),
+        source_path_hint: "~/code/delta".to_string(),
+        destination_location_id: "code".to_string(),
+        git: Some(GitInfo {
+            remote_hint: None,
+            branch: "main".to_string(),
+            commit: None,
+            dirty_worktree: true,
+            dirty_state_captured: true,
+            patch: Some(patch.clone()),
+        }),
+    }];
+
+    let payload = serde_json::to_vec(&manifest).unwrap();
+    let session = send(&mac, &windows, &workspace_id, payload.clone()).await;
+    assert_eq!(
+        session.status,
+        TransferStatus::Completed,
+        "the delta-carrying send should complete: {:?}",
+        session.error
+    );
+    let arrival = windows
+        .wait_for_arrival(Duration::from_secs(5))
+        .await
+        .expect("an arrival should be reported");
+    assert!(
+        arrival.accepted,
+        "the arrival was refused: {:?}",
+        arrival.refusal_reason
+    );
+
+    // The patch travels inside the manifest to the receiving machine's store,
+    // intact, and opens with the receiving machine's key.
+    let row = WorkspaceRepository::new(windows.pool.clone())
+        .get(&workspace_id)
+        .await
+        .expect("the lookup should run")
+        .expect("the workspace must be recorded on the receiving machine");
+    let sealed = std::fs::read_to_string(&row.encrypted_manifest_path).expect("the sealed file");
+    let opened: WorkspaceManifest =
+        workspace_clone_crypto::open_json(&windows.storage_key, &sealed)
+            .expect("the receiving machine must open what it stored");
+    assert_eq!(
+        opened.projects[0]
+            .git
+            .as_ref()
+            .and_then(|g| g.patch.as_deref()),
+        Some(patch.as_str()),
+        "the captured delta must arrive intact inside the manifest"
+    );
+
+    // Restore the way the app does on this machine: a checkout at the captured
+    // state, with the captured delta applied to it. `git status` must show the
+    // Mac's change and the new file, and nothing else -- the one-change story,
+    // not the hundred-and-forty-six-file rewrite.
+    let dest = root.join("dest");
+    git(
+        &root,
+        &[
+            "clone",
+            "-q",
+            base.to_string_lossy().as_ref(),
+            dest.to_string_lossy().as_ref(),
+        ],
+    );
+    let patch_path = root.join("delta.patch");
+    std::fs::write(&patch_path, &patch).unwrap();
+    git(
+        &dest,
+        &[
+            "apply",
+            "--binary",
+            "--whitespace=nowarn",
+            patch_path.to_string_lossy().as_ref(),
+        ],
+    );
+
+    let mut status = git_status_short(&dest);
+    status.sort();
+    assert_eq!(
+        status,
+        vec![" M note.txt", "?? new.txt"],
+        "the restored checkout must show exactly the source's uncommitted state"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dest.join("note.txt")).unwrap(),
+        "one line\nchanged on the Mac\n"
+    );
+    assert_eq!(std::fs::read_to_string(dest.join("new.txt")).unwrap(), "new file\n");
+
+    remove_manifest(&workspace_id);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_workspace_with_projects_and_requirements_arrives_intact() {
     // A byte-for-byte check on a manifest that is actually worth sending. The
     // happy-path test above uses a nearly empty manifest, and an empty one cannot
@@ -493,7 +670,8 @@ async fn a_workspace_with_projects_and_requirements_arrives_intact() {
             branch: "main".to_string(),
             commit: Some("0".repeat(40)),
             dirty_worktree: true,
-            dirty_state_captured: true,
+            dirty_state_captured: false,
+            patch: None,
         }),
     }];
     manifest.applications = vec![Application {

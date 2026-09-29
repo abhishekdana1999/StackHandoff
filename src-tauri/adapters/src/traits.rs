@@ -178,6 +178,12 @@ pub enum RestoreActionType {
     OpenUrls,
     OfferCommand,
     CheckGit,
+    /// Apply the git delta the capture device recorded to the destination
+    /// checkout, so `git status` there shows exactly the source's uncommitted
+    /// changes rather than a re-overwritten tree. Carried out by the git
+    /// adapter with `git apply`; unfakeable path containment comes from git
+    /// itself.
+    ApplyGitPatch,
     /// Confirm the planner's path mapping (a bookkeeping step, no adapter).
     MapPath,
     /// Write a project's captured files from the workspace archive into its

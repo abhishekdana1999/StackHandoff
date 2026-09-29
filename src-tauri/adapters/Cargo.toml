@@ -8,6 +8,7 @@ description = "Application adapters for Workspace Clone"
 [dependencies]
 workspace_clone_core = { path = "../core" }
 workspace_clone_db = { path = "../db" }
+workspace_clone_files = { path = "../files" }
 tokio = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }

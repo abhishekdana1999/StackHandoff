@@ -331,14 +331,19 @@ export interface GitInfo {
   commit: string | null;
   dirty_worktree: boolean;
   /**
-   * Always false. What never travels is git's *internal* representation of
-   * uncommitted work — staged and unstaged deltas, the index, anything under
-   * `.git` — which the file snapshot's denylist excludes by design. The
-   * working-tree files the changes live in *are* captured. This flag lets the
-   * manifest state that the dirty *state* did not travel, rather than leaving
-   * the reader to assume it did.
+   * Whether the contents of the dirty worktree were captured as a
+   * `git apply`-able patch (see `patch`). False for a clean worktree and for
+   * builds that predate the patch transport.
    */
   dirty_state_captured: boolean;
+  /**
+   * The working-tree delta vs `commit` (`git diff HEAD` plus untracked
+   * non-ignored files), in a shape `git apply` accepts. Null when the
+   * worktree was clean or git could not produce it. The restore layer applies
+   * this to the destination checkout instead of overwriting the whole tree,
+   * so `git status` there shows exactly what changed on the source.
+   */
+  patch?: string | null;
 }
 
 export interface Project {
