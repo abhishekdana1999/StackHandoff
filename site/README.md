@@ -150,38 +150,27 @@ Tauri does not produce those names. It produces versioned ones:
 | `StackHandoff_0.1.0_x64-setup.exe` | `StackHandoff.exe` |
 | `StackHandoff_0.1.0_en-US.msi` | *(not linked)* |
 
-So the release has to be published under the canonical names. Once:
+The **Release installers** GitHub Actions workflow publishes both assets under
+the canonical names. Run it manually from the commit you want to release; it
+reads `package.json`, creates the `v<version>` tag on that commit, builds the
+Apple silicon DMG and Windows NSIS installer, then creates or updates the GitHub
+Release. A pushed `v*` tag is also accepted, but it must exactly match the
+`package.json` version. The package and Tauri config versions must match too.
 
-```sh
-# 1. build the Mac installer
-npm run tauri build
-#    -> src-tauri/target/release/bundle/dmg/StackHandoff_0.1.0_aarch64.dmg
+After the first release is published, set `PUBLISHED = true` in
+`site/main.js`; until then the site intentionally keeps installer downloads
+disabled rather than linking visitors to a missing release.
 
-# 2. build the Windows installer, on a Windows machine (Git Bash)
-scripts/build_windows.sh
-#    -> src-tauri/target/<triple>/release/bundle/nsis/StackHandoff_0.1.0_x64-setup.exe
-
-# 3. tag, so "latest" has something to point at
-git tag v0.1.0 && git push origin v0.1.0
-
-# 4. create the release with the renamed assets
-gh release create v0.1.0 \
-  src-tauri/target/release/bundle/dmg/StackHandoff_0.1.0_aarch64.dmg#StackHandoff.dmg \
-  path/to/StackHandoff_0.1.0_x64-setup.exe#StackHandoff.exe \
-  --title "StackHandoff 0.1.0"
-
-# 5. and in site/main.js, set PUBLISHED = true
-```
-
-The `#name` suffix is GitHub's asset-rename syntax and is the entire trick.
+The workflow stages the versioned Tauri outputs as `StackHandoff.dmg` and
+`StackHandoff.exe` before uploading them, keeping these download URLs stable
+across app versions.
 
 Two constraints worth knowing:
 
 - `releases/latest` only resolves for a **published** release. A draft or a
   prerelease is invisible to it, and the buttons break.
-- `.github/workflows/windows-installer.yml` also runs on a `v*` tag, so tagging
-  `v0.1.0` builds the Windows installer on CI. That path is **unverified** — the
-  workflow has never executed. The manual build above is the known-good route.
+- `.github/workflows/windows-installer.yml` also runs on pushed `v*` tags and
+  publishes the matching GitHub Release from CI.
 
 ### If you would rather keep Tauri's names
 

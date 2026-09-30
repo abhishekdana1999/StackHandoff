@@ -1,17 +1,4 @@
-# Builds a shareable Windows installer.
-#
-# Why this exists rather than a cross-compile on the Mac: Tauri's Windows build
-# needs the MSVC toolchain and the Windows SDK, and while `cargo-xwin` can
-# fetch those to *compile* the Rust, `tauri build` additionally bundles with
-# NSIS and runs Windows tooling. Cross-building a Tauri app to Windows from
-# macOS is not supported. The supported path is a Windows machine, and
-# GitHub Actions is the cheapest one that does not need to be the laptop.
-#
-# This workflow is written but has NEVER RUN -- it was authored on a machine
-# with no access to github.com, so the first execution is unverified. The
-# `Windows build works` claim in the tracker is deliberately *not* made.
-
-name: Windows installer
+name: Release installers
 
 on:
   workflow_dispatch:
@@ -19,12 +6,55 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: read
+
 jobs:
-  windows:
-    # windows-latest already has the Visual Studio build tools, the Windows SDK
-    # and the WebView2 runtime, which is everything a Tauri Windows build needs.
-    runs-on: windows-latest
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+      tag: ${{ steps.read.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read and validate version
+        id: read
+        shell: bash
+        run: |
+          version="$(node -p "JSON.parse(require('node:fs').readFileSync('package.json', 'utf8')).version")"
+          tauri_version="$(node -p "JSON.parse(require('node:fs').readFileSync('src-tauri/app/tauri.conf.json', 'utf8')).version")"
+          if [[ "$version" != "$tauri_version" ]]; then
+            echo "package.json version ($version) must match the Tauri version ($tauri_version)." >&2
+            exit 1
+          fi
+
+          tag="v${version}"
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF_NAME" != "$tag" ]]; then
+            echo "Pushed tag '$GITHUB_REF_NAME' does not match package.json version tag '$tag'." >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            runner: macos-14
+            target: aarch64-apple-darwin
+          - platform: windows
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -35,39 +65,79 @@ jobs:
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
-          # The Rust workspace is not at the repo root, so the default cache
-          # paths would miss it entirely and every run would rebuild from zero.
           workspaces: src-tauri
 
       - name: Install frontend dependencies
         run: npm ci
 
-      # `tauri.conf.json` is not at the repo root or in src-tauri/; it sits
-      # beside src-tauri/app/Cargo.toml (see DEC-017). tauri-action searches
-      # ./tauri.conf.json and ./src-tauri/tauri.conf.json by default and would
-      # find neither, so the path has to be given explicitly.
-      - name: Build the Windows installer
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: .
-          tauriConfPath: src-tauri/app/tauri.conf.json
-          # `bundle.targets` is "all" in the config, which on Windows produces
-          # both the NSIS .exe installer and an .msi. Either is shareable; the
-          # .exe needs no admin rights to install.
-          args: --target x86_64-pc-windows-msvc
+      - name: Build installer
+        run: npx tauri build --config src-tauri/app/tauri.conf.json --target ${{ matrix.target }}
 
-      # Upload the artifacts directly, so a run can be used even before anyone
-      # has cut a release tag.
-      - name: Upload the installers
+      - name: Stage macOS release asset
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          cp "src-tauri/target/${{ matrix.target }}/release/bundle/dmg/StackHandoff_${VERSION}_aarch64.dmg" \
+            release-assets/StackHandoff.dmg
+
+      - name: Stage Windows release asset
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          Copy-Item "src-tauri/target/${{ matrix.target }}/release/bundle/nsis/StackHandoff_${env:VERSION}_x64-setup.exe" `
+            "release-assets/StackHandoff.exe"
+
+      - name: Upload release asset
         uses: actions/upload-artifact@v4
         with:
-          name: stackhandoff-windows
+          name: release-assets-${{ matrix.platform }}
           if-no-files-found: error
-          path: |
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsi/*.exe
-            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+          path: release-assets/*
+
+  publish:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TAG: ${{ needs.version.outputs.tag }}
+      VERSION: ${{ needs.version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets-macos
+          path: release-assets
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets-windows
+          path: release-assets
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" \
+              release-assets/StackHandoff.dmg \
+              release-assets/StackHandoff.exe \
+              --clobber
+          else
+            gh release create "$RELEASE_TAG" \
+              release-assets/StackHandoff.dmg \
+              release-assets/StackHandoff.exe \
+              --title "StackHandoff $VERSION" \
+              --generate-notes \
+              --target "$GITHUB_SHA"
+          fi
