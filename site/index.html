@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>StackHandoff — Pick up right where you left off.</title>
+    <meta
+      name="description"
+      content="StackHandoff is a peer-to-peer desktop app for cross-device work-session continuity. Capture your setup on one machine, rebuild it on the other. No server, no account, no credentials carried."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <meta property="og:title" content="StackHandoff — Pick up right where you left off." />
+    <meta
+      property="og:description"
+      content="Move your working environment between your own machines. Peer-to-peer, encrypted, nothing happens without your say-so."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="assets/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="stylesheet" href="styles.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%235048e5'/%3E%3Cpath d='M8 11.5A2.5 2.5 0 0 1 10.5 9h11a2.5 2.5 0 0 1 2.5 2.5v7a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 8 18.5z' fill='none' stroke='white' stroke-width='2'/%3E%3Cpath d='M13 22h6' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
+  </head>
+
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <div class="progress" aria-hidden="true"><i data-progress></i></div>
+
+    <header class="nav" data-nav>
+      <div class="nav__in">
+        <a class="brand" href="#top">
+          <span class="brand__mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <path d="M8 21h8M12 17v4" />
+            </svg>
+          </span>
+          <span class="brand__name">StackHandoff</span>
+        </a>
+
+        <nav class="nav__links" aria-label="Sections">
+          <a href="#how">How it works</a>
+          <a href="#travels">What travels</a>
+          <a href="#screens">Screens</a>
+          <a href="#under">Under the hood</a>
+        </nav>
+
+        <a class="btn btn--primary btn--sm nav__cta" href="#get" data-download data-auto>
+          <span data-download-label>Download</span>
+        </a>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- ============================ HERO ============================ -->
+      <section class="hero" id="top">
+        <div class="shell hero__in">
+          <div class="hero__copy">
+            <p class="eyebrow" data-hero="1">
+              <span class="dot" aria-hidden="true"></span>
+              Peer-to-peer · No account · No server
+            </p>
+
+            <h1 class="hero__title" data-hero="2">
+              Pick up right<br />where you left off.
+            </h1>
+
+            <p class="hero__sub" data-hero="3">
+              StackHandoff moves the <em>intent</em> of a work session between your own machines.
+              Open projects and their branches, installed tools, runtimes, environment variables,
+              the accounts you were signed in to — and the uncommitted edits you left behind.
+            </p>
+
+            <div class="hero__cta" data-hero="4">
+              <a class="btn btn--primary btn--lg" href="#get" data-download data-auto>
+                <span data-platform-glyph aria-hidden="true"></span>
+                <span data-download-label>Download for macOS</span>
+              </a>
+              <a class="btn btn--outline btn--lg" href="#how">See how it works</a>
+            </div>
+
+            <p class="hero__note" data-hero="5">
+              <span data-download-filename>StackHandoff.dmg</span>
+              <span class="sep" aria-hidden="true">·</span>
+              <span data-download-size>—</span>
+              <span class="sep" aria-hidden="true">·</span>
+              Free and open source
+            </p>
+          </div>
+
+          <div class="hero__art" data-hero="6">
+            <div class="shell-plain" data-parallax>
+              <div class="appwin">
+                <div class="appwin__bar">
+                  <i class="dot-r"></i><i class="dot-y"></i><i class="dot-g"></i>
+                  <span class="appwin__title">StackHandoff</span>
+                </div>
+                <img
+                  src="assets/shots/land/transfer-top.png"
+                  alt="The StackHandoff Send Workspace screen, showing the sealed manifest of a captured workspace: name, capture time, project count, applications, requirements and source device."
+                  width="1440"
+                  height="900"
+                  loading="eager"
+                  decoding="async"
+                />
+              </div>
+              <div class="float-card float-card--a" data-float="0.35">
+                <span class="tick" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 6L9 17l-5-5" />
+                  </svg>
+                </span>
+                <div>
+                  <b>Git state travels</b>
+                  <em>main @ a1b2c3d · uncommitted changes</em>
+                </div>
+              </div>
+              <div class="float-card float-card--b" data-float="-0.22">
+                <span class="tick" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="10" width="16" height="11" rx="2" />
+                    <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                  </svg>
+                </span>
+                <div>
+                  <b>End to end encrypted</b>
+                  <em>Noise_IK · X25519 · AEAD</em>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero__strip" aria-hidden="true">
+          <div class="ticker" data-ticker>
+            <div class="ticker__row" id="tickerRow"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================= THE PROBLEM ========================= -->
+      <section class="section section--tight" id="problem">
+        <div class="shell">
+          <div class="lede reveal">
+            <p class="kicker">The problem</p>
+            <h2>
+              Your setup is not in your files.<br />It is everywhere <em>at once</em>.
+            </h2>
+            <p class="lede__p">
+              A project is a folder, a branch, a runtime version, three extensions, an API key in
+              your shell, a signed-in account, and a half-finished refactor. Copying the folder gets
+              you none of the rest — so you spend the first hour of a new machine rebuilding the
+              hour you just lost.
+            </p>
+          </div>
+
+          <div class="split">
+            <article class="card card--pad reveal" data-tilt>
+              <span class="chip chip--danger">Not copied</span>
+              <h3>It does not copy your files</h3>
+              <p>
+                StackHandoff captures a <em>description</em> of your working environment — a manifest
+                — and rebuilds the environment from it. Your source of truth stays where it is.
+              </p>
+            </article>
+
+            <article class="card card--pad reveal" data-tilt>
+              <span class="chip chip--danger">Never automatic</span>
+              <h3>Nothing happens without you</h3>
+              <p>
+                Every step is shown first, in plain English, before it runs. You review what was
+                captured, skip what you don't want, and apply the rest.
+              </p>
+            </article>
+
+            <article class="card card--pad reveal" data-tilt>
+              <span class="chip chip--danger">Nothing leaves</span>
+              <h3>No server, no account, no cloud</h3>
+              <p>
+                Your machines find each other on the local network over mDNS and talk directly. There
+                is nothing in the middle to trust with a copy of your setup.
+              </p>
+            </article>
+
+            <article class="card card--pad reveal" data-tilt>
+              <span class="chip chip--danger">No credentials</span>
+              <h3>You never carry a secret</h3>
+              <p>
+                Variable <em>names</em> travel, never values. Accounts are checked for and asked
+                about. Keys, tokens and cookies are on an explicit never-captured list.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================== HOW IT WORKS ======================== -->
+      <section class="section" id="how">
+        <div class="shell">
+          <div class="lede reveal">
+            <p class="kicker">How it works</p>
+            <h2>Four steps, in order, both sides watching.</h2>
+            <p class="lede__p">
+              The source captures, the destination decides. Scroll to walk through it — every frame
+              below is a real screenshot of the app, not an illustration.
+            </p>
+          </div>
+        </div>
+
+        <div class="steps" data-steps>
+          <div class="steps__rail" aria-hidden="true"><i data-rail></i></div>
+
+          <div class="shell">
+            <!-- 1 Pair -->
+            <article class="step is-active" data-step>
+              <div class="step__text">
+                <span class="step__num">1</span>
+                <h3>Pair the two machines</h3>
+                <p>
+                  Same network, same Wi-Fi. Each side advertises itself over mDNS and you confirm the
+                  other one's fingerprint by hand — read it aloud, out loud, if you want to be sure.
+                  Trust is per-device and revocable, and you choose what each one may do.
+                </p>
+                <ul class="ticks">
+                  <li>Scoped trust: receive, send, files, clipboard</li>
+                  <li>Fingerprints compared out of band, not trusted blindly</li>
+                  <li>Revoke a device and its keys stop being accepted</li>
+                </ul>
+              </div>
+              <div class="step__art">
+                <div class="pairviz" aria-hidden="true">
+                  <div class="peer peer--a"><span class="peer__ico">macOS</span><b>Your Mac</b></div>
+                  <div class="wire"><i data-wire></i><span>mDNS · Noise_IK</span></div>
+                  <div class="peer peer--b"><span class="peer__ico">Windows</span><b>Your PC</b></div>
+                </div>
+              </div>
+            </article>
+
+            <!-- 2 Capture -->
+            <article class="step" data-step>
+              <div class="step__text">
+                <span class="step__num">2</span>
+                <h3>Capture what you actually use</h3>
+                <p>
+                  Pick your project folders, the apps you keep open in them, the runtimes and tools
+                  they need, and the URLs you want to reopen. Nothing outside that list is read from
+                  the machine — the screen tells you the count as you go.
+                </p>
+                <ul class="ticks">
+                  <li>Per-project git branch, remote and dirty state</li>
+                  <li>Uncommitted work travels as a patch, applied on the far side</li>
+                  <li>Env var names only — presence is checked, values never read</li>
+                </ul>
+              </div>
+              <div class="step__art">
+                <figure class="shot" data-shot>
+                  <img
+                    src="assets/shots/land/capture.png"
+                    alt="The Capture Workspace screen. Four items selected. Two project rows checked — openshorts, flagged as having uncommitted changes, and docs — plus the VS Code and Terminal applications."
+                    width="1440"
+                    height="900"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <figcaption>Capture Workspace — 4 items selected</figcaption>
+                </figure>
+              </div>
+            </article>
+
+            <!-- 3 Send -->
+            <article class="step" data-step>
+              <div class="step__text">
+                <span class="step__num">3</span>
+                <h3>Send it, sealed</h3>
+                <p>
+                  You see exactly what is in the manifest before it leaves, sealed and encrypted. It
+                  goes straight to the other machine over the authenticated connection you already
+                  set up. No upload, no queue, no size limit that isn't your disk.
+                </p>
+                <ul class="ticks">
+                  <li>Manifest is shown in full before sending</li>
+                  <li>AEAD-sealed archive, authenticated with your paired key</li>
+                  <li>Preflight runs on the destination, never on the source</li>
+                </ul>
+              </div>
+              <div class="step__art">
+                <figure class="shot shot--tall" data-shot>
+                  <img
+                    src="assets/shots/land/dest-card.png"
+                    alt="The Destinations card on the Send Workspace screen. A single paired device on the network is selected, and the send panel confirms end-to-end encryption over a direct connection."
+                    width="1120"
+                    height="800"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <figcaption>Send to a paired device — direct, no server</figcaption>
+                </figure>
+              </div>
+            </article>
+
+            <!-- 4 Restore -->
+            <article class="step" data-step>
+              <div class="step__text">
+                <span class="step__num">4</span>
+                <h3>Review, then restore</h3>
+                <p>
+                  The destination builds a plan: every step in dependency order, with the exact final
+                  path it will write to. Required steps can't be skipped — a restore that silently
+                  drops one produces a workspace that looks right and isn't. Optional ones are your
+                  call.
+                </p>
+                <ul class="ticks">
+                  <li>Destination folder per bucket, never invented</li>
+                  <li>Required steps are locked; optional ones toggle</li>
+                  <li>Commands are printed for you to run, never run for you</li>
+                </ul>
+              </div>
+              <div class="step__art">
+                <figure class="shot" data-shot>
+                  <img
+                    src="assets/shots/land/restore-preview.png"
+                    alt="The Restore Plan screen. Four steps in dependency order: open the project in VS Code, verify git state, apply the uncommitted patch, and offer the dev server command. Three required, one optional."
+                    width="1440"
+                    height="900"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <figcaption>Restore Plan — 4 steps, in dependency order</figcaption>
+                </figure>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <!-- payoff -->
+        <div class="shell">
+          <div class="gitpay reveal" id="screens">
+            <figure class="shot shot--wide" data-shot>
+              <img
+                src="assets/shots/land/restore-report.png"
+                alt="The Restore Report screen. Three steps done, one left for you to run, with the patch applied to the destination checkout and the git state verified."
+                width="1440"
+                height="900"
+                loading="lazy"
+                decoding="async"
+              />
+              <figcaption>Restore Report — your working tree, intact</figcaption>
+            </figure>
+            <div class="gitpay__text">
+              <h3>Your <code>git status</code> survives the trip</h3>
+              <p>
+                Cloned repositories are rebuilt on the destination with the working-tree delta
+                re-applied as a patch. The other machine shows exactly your changes — not a
+                rewritten tree, not a fresh clone with your work missing.
+              </p>
+              <pre class="snippet" data-copy><code
+                  ><span class="c-p">$</span> git status
+On branch <span class="c-g">main</span>
+Your branch is ahead of <span class="c-d">origin/main</span> by <span class="c-g">1</span> commit.
+
+Changes not staged for commit:
+  <span class="c-r">modified:</span>   src/screens/TransferScreen.tsx
+  <span class="c-r">modified:</span>   src-tauri/crypto/src/keys.rs</code
+                ><button class="copy" type="button" data-copy-btn>Copy</button></pre
+              >
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================= WHAT TRAVELS ======================== -->
+      <section class="section" id="travels">
+        <div class="shell">
+          <div class="lede reveal">
+            <p class="kicker">What travels</p>
+            <h2>The manifest, in full.</h2>
+            <p class="lede__p">
+              This is the whole of it. Everything below crosses the wire, and nothing that isn't on
+              this list is ever read off the source machine.
+            </p>
+          </div>
+
+          <div class="manifest reveal">
+            <pre data-copy><code>{
+  <span class="k">"workspace"</span>: {
+    <span class="k">"name"</span>: <span class="s">"Workspace Clone - Win to Mac Transfer"</span>,
+    <span class="k">"portability"</span>: <span class="s">"cross_platform"</span>
+  },
+  <span class="k">"projects"</span>: [
+    {
+      <span class="k">"name"</span>: <span class="s">"openshorts"</span>,
+      <span class="k">"destination_location_id"</span>: <span class="s">"code"</span>,
+      <span class="k">"git"</span>: {
+        <span class="k">"branch"</span>: <span class="s">"main"</span>,
+        <span class="k">"commit"</span>: <span class="s">"a1b2c3d"</span>,
+        <span class="k">"dirty_worktree"</span>: <span class="true">true</span>,
+        <span class="k">"dirty_state_captured"</span>: <span class="true">true</span>
+      }
+    }
+  ],
+  <span class="k">"requirements"</span>: {
+    <span class="k">"runtimes"</span>:   [{ <span class="k">"name"</span>: <span class="s">"node"</span>, <span class="k">"version"</span>: <span class="s">"22.13.1"</span> }],
+    <span class="k">"cli_tools"</span>:  [{ <span class="k">"name"</span>: <span class="s">"git"</span> }],
+    <span class="k">"identities"</span>:  [{ <span class="k">"service"</span>: <span class="s">"github"</span>, <span class="k">"needs_consent"</span>: <span class="true">true</span> }],
+    <span class="k">"environment"</span>: { <span class="k">"presence_only"</span>: [<span class="s">"SUPABASE_URL"</span>, <span class="s">"API_BASE_URL"</span>], <span class="k">"values_included"</span>: <span class="false">false</span> }
+  },
+  <span class="k">"policy"</span>: {
+    <span class="k">"automatic_command_execution"</span>: <span class="false">false</span>,
+    <span class="k">"secret_values_included"</span>: <span class="false">false</span>
+  }
+}</code></pre>
+            <button class="copy copy--float" type="button" data-copy-btn>Copy manifest</button>
+          </div>
+
+          <div class="never reveal">
+            <h3 class="never__h">Never captured, in any build</h3>
+            <ul class="never__list">
+              <li>Environment variable values, tokens, cookies, private keys</li>
+              <li>Absolute paths — replaced with a redacted hint</li>
+              <li>Credentials in repository remotes</li>
+              <li>Shell history — not read at all</li>
+              <li>Browser history and profile — not read at all</li>
+              <li>Anything you didn't tick on the capture screen</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========================== FEATURES ========================== -->
+      <section class="section section--alt" id="features">
+        <div class="shell">
+          <div class="lede reveal">
+            <p class="kicker">Why it's different</p>
+            <h2>Built to be checked, not trusted.</h2>
+          </div>
+
+          <div class="cards">
+            <article class="fcard reveal">
+              <span class="fcard__ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3l7 4v5c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V7z" />
+                </svg>
+              </span>
+              <h3>Direct and authenticated</h3>
+              <p>
+                Noise_IK with X25519 and AEAD. Both ends are authenticated from keys you exchanged
+                by hand, and every byte is encrypted on the way.
+              </p>
+            </article>
+
+            <article class="fcard reveal">
+              <span class="fcard__ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+                </svg>
+              </span>
+              <h3>Nothing automatic</h3>
+              <p>
+                Commands are printed into a visible terminal for you to run. No workspace arrives
+                able to make this app execute something.
+              </p>
+            </article>
+
+            <article class="fcard reveal">
+              <span class="fcard__ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 7h16M4 12h16M4 17h10" />
+                </svg>
+              </span>
+              <h3>Explains every skip</h3>
+              <p>
+                Denylisted files, missing runtimes, unset variables — anything that couldn't come
+                across is listed in the report rather than quietly missing.
+              </p>
+            </article>
+
+            <article class="fcard reveal">
+              <span class="fcard__ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 12h18M12 3v18" />
+                </svg>
+              </span>
+              <h3>Mac and Windows, either way</h3>
+              <p>
+                Built as a Mac app and a Windows installer. The manifest is cross-platform by
+                construction — it describes intent, not paths.
+              </p>
+            </article>
+          </div>
+
+          <div class="stats reveal">
+            <div class="stat">
+              <b data-count="419">0</b><span>Rust tests across crypto, adapters, planner, transfer</span>
+            </div>
+            <div class="stat">
+              <b data-count="102">0</b><span>Frontend tests over routing, theming, receive flow</span>
+            </div>
+            <div class="stat">
+              <b data-count="0" data-count-literal="0">0</b><span>Servers involved in moving your work</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================== UNDER THE HOOD ======================= -->
+      <section class="section" id="under">
+        <div class="shell">
+          <div class="lede reveal">
+            <p class="kicker">Under the hood</p>
+            <h2>Open source, all the way down.</h2>
+            <p class="lede__p">
+              Tauri shell, Rust workspace behind it, React in front. Every claim on this page is
+              checkable in the repository.
+            </p>
+          </div>
+
+          <div class="stack reveal">
+            <div class="stack__row"><span>Shell</span><b>Tauri 2</b></div>
+            <div class="stack__row"><span>Frontend</span><b>React 18 · TypeScript · Vite · Tailwind</b></div>
+            <div class="stack__row"><span>Backend</span><b>Rust workspace — 9 crates</b></div>
+            <div class="stack__row"><span>Transport</span><b>Noise_IK · X25519 · AEAD · mDNS</b></div>
+            <div class="stack__row"><span>Data</span><b>SQLite via SQLx, offline migrations</b></div>
+          </div>
+
+          <div class="repo reveal">
+            <a href="https://github.com/abhishekdana1999/workspace-clone" rel="noopener">
+              <span class="repo__url">github.com/abhishekdana1999/workspace-clone</span>
+              <span class="btn btn--outline btn--sm">Read the source</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- =========================== DOWNLOAD ========================= -->
+      <section class="get" id="get">
+        <div class="shell">
+          <div class="get__box reveal">
+            <p class="kicker kicker--light">Get StackHandoff</p>
+            <h2>Pick up on the other machine.</h2>
+
+            <div class="get__platform" data-platform-detected hidden>
+              <span class="chip chip--soft">
+                Detected: <b data-platform-name>your platform</b>
+              </span>
+            </div>
+
+            <div class="get__actions">
+              <!-- Primary: the detected platform. href is set by main.js so the
+                   no-JS case still lands on a real page. -->
+              <a
+                class="btn btn--light btn--lg"
+                href="https://github.com/abhishekdana1999/workspace-clone/releases/latest"
+                data-download
+                data-auto
+              >
+                <span data-platform-glyph aria-hidden="true"></span>
+                <span data-download-label>Download</span>
+              </a>
+
+              <!-- Explicit both-platform switcher, so the detection is never a
+                   dead end for the wrong visitor. -->
+              <div class="switch" role="group" aria-label="Choose a build">
+                <button type="button" class="switch__btn" data-pick="mac">
+                  <b>macOS</b><em>.dmg · Apple silicon</em>
+                </button>
+                <button type="button" class="switch__btn" data-pick="win">
+                  <b>Windows</b><em>.exe · no admin rights</em>
+                </button>
+              </div>
+            </div>
+
+            <ul class="get__facts">
+              <li>Free and MIT licensed</li>
+              <li>No account, ever</li>
+              <li>Nothing leaves your network</li>
+              <li>Builds for macOS and Windows</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="shell foot__in">
+        <div>
+          <span class="brand">
+            <span class="brand__mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" />
+              </svg>
+            </span>
+            <span class="brand__name">StackHandoff</span>
+          </span>
+          <p class="foot__tag">Pick up right where you left off.</p>
+        </div>
+
+        <nav class="foot__links" aria-label="Footer">
+          <a href="#how">How it works</a>
+          <a href="#travels">What travels</a>
+          <a href="#under">Under the hood</a>
+          <a href="https://github.com/abhishekdana1999/workspace-clone" rel="noopener">GitHub</a>
+        </nav>
+
+        <p class="foot__fine">
+          Every screenshot on this page is the real application UI, captured from this repository by
+          <code>scripts/capture-shots.mjs</code>.
+        </p>
+      </div>
+    </footer>
+
+    <script src="main.js"></script>
+  </body>
+</html>

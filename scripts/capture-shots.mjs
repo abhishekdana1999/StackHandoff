@@ -13,12 +13,17 @@
  * Usage: node scripts/capture-shots.mjs
  */
 import { createRequire } from 'node:module';
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 const require = createRequire(import.meta.url);
 const puppeteer = require('puppeteer-core');
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const BASE = 'http://localhost:1420';
-const OUT = 'brag-output/shots';
+// Overridable so the same captures can feed more than one consumer -- the
+// launch videos used `brag-output/shots`, the marketing site uses
+// `site/assets/shots`. One capture run, whichever destination is asked for.
+const OUT = process.env.SHOTS_OUT || 'brag-output/shots';
 
 const LANDSCAPE = { width: 1440, height: 900, dir: 'land' };
 const PORTRAIT = { width: 1080, height: 1162, dir: 'port' };
@@ -69,6 +74,7 @@ async function clickDeviceRow(page) {
 
 async function capture(page, viewport, shot) {
   const file = `${OUT}/${viewport.dir}/${shot.name}.png`;
+  mkdirSync(dirname(file), { recursive: true });
   const vp =
     (shot.viewportByDir && shot.viewportByDir[viewport.dir]) ||
     shot.viewport ||
@@ -89,7 +95,7 @@ const shots = [
     settle: 'Choose what to include',
     setup: async (page) => {
       await waitForText(page, 'Choose what to include');
-      await page.type('#capture-name', 'Workspace Clone - Win to Mac Transfer');
+      await page.type('#capture-name', 'StackHandoff - Win to Mac Transfer');
       await page.evaluate(() => {
         document.getElementById('project-p1')?.click();
         document.getElementById('project-p2')?.click();
