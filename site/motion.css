@@ -1,0 +1,976 @@
+/* ==========================================================================
+   StackHandoff — the motion layer
+   --------------------------------------------------------------------------
+   Everything that moves, in one file, so the choreography can be read top to
+   bottom as a sequence rather than hunted for across selectors.
+
+   The centrepiece is #journey: a 290svh section wrapped around a sticky stage.
+   main.js writes two custom properties onto the section as the page scrolls --
+
+     --travel    0 -> 1   overall progress through the sequence
+     --restore   0 -> 1   how far the destination has accepted the handoff
+
+   and the stylesheet below turns those two numbers into motion. Doing it this
+   way rather than in JavaScript means the browser owns the interpolation: one
+   custom-property write per frame instead of a pile of transform strings, and
+   nothing reflows.
+
+   Every animation on this page has an explicit off switch, and the
+   prefers-reduced-motion block at the bottom is not a courtesy -- it is the
+   only reason the page is usable for someone who has asked for less motion.
+   ========================================================================== */
+
+/* ------------------------------------------------------------------ hero -- */
+.motion-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100svh - var(--nav-h));
+  padding: 96px 24px 120px;
+  overflow: hidden;
+  background: var(--canvas);
+  border-bottom: 1px solid var(--line);
+}
+
+/* A single wide glow sitting under the headline. Cheap, and it stops the top
+   of the page reading as a flat rectangle. */
+.motion-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 70% 55% at 50% 96%, var(--accent-soft), transparent 70%);
+}
+
+.hero-intro {
+  position: relative;
+  max-width: 1100px;
+  margin-inline: auto;
+  text-align: center;
+}
+
+.motion-hero .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 28px;
+  padding: 6px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--accent);
+  font: 500 11px/1.6 var(--mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.motion-hero .eyebrow .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--signal);
+}
+
+.motion-hero h1 {
+  margin: 0 auto 30px;
+  font-size: clamp(46px, 7.6vw, 110px);
+  font-weight: 550;
+  letter-spacing: -0.062em;
+  line-height: 1.04;
+}
+.motion-hero h1 span {
+  color: var(--accent);
+}
+
+.intro-copy {
+  max-width: 60ch;
+  margin: 0 auto 32px;
+  font-size: clamp(17px, 1.7vw, 21px);
+  line-height: 1.65;
+  color: var(--fg-muted);
+}
+
+.hero-actions {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.hero-meta {
+  display: flex;
+  justify-content: center;
+  gap: 22px;
+  margin-top: 30px;
+  font: 12px/1.6 var(--mono);
+  color: var(--fg-subtle);
+}
+.hero-meta b {
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+.hero-meta span + span {
+  padding-left: 22px;
+  border-left: 1px solid var(--line-2);
+}
+
+.scroll-cue {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  color: var(--fg-faint);
+  font: 10px/1 var(--mono);
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  transition: color 0.25s var(--ease);
+}
+.scroll-cue:hover {
+  color: var(--fg);
+}
+
+.scroll-rule {
+  width: 1px;
+  height: 30px;
+  transform-origin: top;
+  background: linear-gradient(var(--accent), transparent);
+  animation: scroll-prompt 2.1s var(--ease) infinite;
+}
+
+@keyframes scroll-prompt {
+  50% {
+    transform: scaleY(0.45);
+    opacity: 0.35;
+  }
+}
+
+/* --------------------------------------------------------------- journey -- */
+.journey {
+  /* Three numbers written by main.js as the page scrolls, and read by
+     everything below. --travel is overall progress, --draw is how much of the
+     connection has been drawn, --restore is how far the destination has
+     accepted the workspace.
+
+     --restore is the one variable the pause switch and reduced motion both
+     force to 1, which is what leaves the sequence showing its end state rather
+     than frozen on the first frame. */
+  --restore: 0;
+  --travel: 0;
+  --draw: 0;
+  position: relative;
+  height: 290svh;
+  background: var(--canvas);
+  color: var(--fg);
+}
+
+.journey-sticky {
+  position: sticky;
+  top: var(--nav-h);
+  display: flex;
+  flex-direction: column;
+  /* No min-height: the stage is exactly the space between the nav and the
+     bottom of the viewport, because a sticky element taller than the viewport
+     is one whose bottom can never be scrolled into view. */
+  height: calc(100svh - var(--nav-h));
+  overflow: hidden;
+  background: radial-gradient(ellipse 60% 55% at 50% 60%, var(--surface), transparent 62%);
+}
+
+/* Without script there is no scroll listener, so nothing would ever write
+   --restore or --draw: the destination screenshot would sit permanently blank
+   behind its waiting overlay, and the thread would never be drawn. Collapse
+   the sequence to its last frame instead — the finished handoff as a static
+   diagram, which is the useful still.
+
+   The three values have to be forced here as well as in the reduced-motion
+   block. And the device screens need a real height: they are flex children
+   with min-height: 0 sized by whatever the stage leaves over, so with the stage
+   at height: auto they collapse to nothing — two black bezel-less frames with
+   no image in them, which is worse than the blank screen it replaced. */
+/* !important on the three values for the same reason the reduced-motion block
+   uses it: main.js writes them as INLINE styles, and an inline declaration
+   outranks any selector in a stylesheet no matter how specific that selector
+   is. Without !important, restoring the no-js class on a page whose script has
+   already run — which is what a cached stylesheet plus a fresh script does, and
+   what the audit does when it checks this path — leaves the destination blank. */
+html.no-js .journey {
+  height: auto;
+  --restore: 1 !important;
+  --travel: 1 !important;
+  --draw: 1 !important;
+}
+html.no-js .journey-sticky {
+  position: relative;
+  top: 0;
+  height: auto;
+  padding-block: 64px 40px;
+}
+html.no-js .handoff-map {
+  flex: none;
+  min-height: 300px;
+}
+html.no-js .device-screen img {
+  min-height: 150px;
+}
+html.no-js .journey-hint,
+html.no-js .signal-halo {
+  display: none;
+}
+/* The phase tabs are buttons that do nothing without script. */
+html.no-js .phase-tabs {
+  display: none;
+}
+
+.journey-top {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 24px clamp(20px, 4vw, 48px) 0;
+}
+
+.journey-label {
+  font: 11px/1 var(--mono);
+  letter-spacing: 0.12em;
+  color: var(--fg-faint);
+}
+.journey-label b {
+  color: var(--signal);
+  font-weight: 500;
+}
+
+.motion-toggle {
+  padding: 6px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  font: 12px/1 var(--sans);
+  cursor: pointer;
+  transition: background-color 0.2s var(--ease), color 0.2s var(--ease),
+    border-color 0.2s var(--ease);
+}
+.motion-toggle:hover {
+  background: var(--surface-2);
+  color: var(--fg);
+  border-color: var(--line-3);
+}
+.motion-toggle[aria-pressed='true'] {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+.journey-heading {
+  flex: none;
+  margin: 10px auto 0;
+  padding-inline: 24px;
+  text-align: center;
+}
+
+.journey-kicker {
+  margin: 0 0 12px;
+  color: var(--signal);
+  font: 11px/1 var(--mono);
+  letter-spacing: 0.16em;
+}
+
+/* The phase headline is swapped by script. A short fade between the two keeps
+   the change from reading as a jump cut, but it is a transition on a class
+   rather than a re-animation, so it cannot pile up if the phase is re-entered
+   quickly. */
+.journey-heading h2,
+.journey-desc,
+.transfer-badge b {
+  transition: opacity 0.3s var(--ease);
+}
+.journey-heading.is-swapping h2,
+.journey-heading.is-swapping .journey-desc,
+.transfer-badge.is-swapping b {
+  opacity: 0;
+}
+
+.journey-heading h2 {
+  font-size: clamp(28px, 3.5vw, 48px);
+}
+.journey-desc {
+  margin-top: 12px;
+  color: var(--fg-muted);
+  font-size: 15px;
+}
+
+/* ------------------------------------------------------------ the handoff -- */
+/* The stage is a flex column: heading and tabs take what they need, the map
+   takes the rest. Everything inside the map is sized in flex units rather than
+   pixels, so a short viewport squeezes the device screens instead of pushing
+   the phase tabs off the bottom of a sticky box nothing can scroll. */
+.handoff-map {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 150px;
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  width: min(1200px, 100%);
+  margin-inline: auto;
+  padding: 18px 42px 54px;
+}
+
+.device-node {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 38%;
+  max-width: 420px;
+}
+
+/* Drift, but on the device's CONTENT, never on the frame.
+
+   The obvious version of this moves the whole .device-node, and it is wrong:
+   main.js measures these frames to find where to anchor the thread, so a
+   transformed frame and an untransformed thread end up up to 14px apart — the
+   line visibly detaches from the bezel at exactly the moment the transfer
+   starts, which is the one moment it must not. Per-vertex offsets are not
+   expressible in CSS on a single <path>, so the drift belongs on something
+   that is not a connection point.
+
+   The source's screen drifts up as the handoff leaves it; the destination's
+   settles once it has actually received. Both read as "this is done" rather
+   than "something is happening here". */
+.source-node .device-screen img {
+  transform: translateY(calc(var(--travel) * -12px));
+  will-change: transform;
+}
+.destination-node .destination-body {
+  transform: translateY(calc((1 - var(--restore)) * 12px));
+}
+
+.device-label {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 13px;
+}
+.device-label span {
+  font: 10px/1 var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+}
+.device-label b {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+
+.device-screen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-lg);
+}
+
+.screen-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 12px;
+  background: var(--raised);
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+.screen-icon {
+  color: var(--accent);
+}
+.screen-state {
+  margin-left: auto;
+  font: 9px/1 var(--mono);
+  letter-spacing: 0.06em;
+  color: var(--signal);
+}
+.screen-state.is-waiting {
+  color: var(--fg-faint);
+}
+
+/* object-fit: cover on a top-anchored box, not aspect-ratio. The screenshot is
+   a 16:10 window; a device frame is a crop of one. cover fills whatever the
+   flexbox hands us and keeps the window chrome and title bar visible at every
+   height, where aspect-ratio would leave the frame empty on a short viewport. */
+.device-screen img {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  background: var(--sunken);
+}
+
+.screen-bottom {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  font-size: 10px;
+  color: var(--fg-subtle);
+}
+.screen-bottom code {
+  color: var(--accent);
+}
+
+.destination-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+/* The destination screen cross-fades in only when --restore starts moving, so
+   the arriving workspace replaces the waiting state rather than the two being
+   visible at once. */
+.destination-body > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  background: var(--sunken);
+  opacity: var(--restore);
+}
+
+.waiting-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  opacity: calc(1 - var(--restore));
+  background: var(--bg);
+}
+.waiting-state > span {
+  font-size: 34px;
+  line-height: 1;
+  color: var(--line-3);
+}
+.waiting-state b {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+.waiting-state small {
+  font-size: 10px;
+  color: var(--fg-faint);
+}
+
+/* the connection */
+.connection {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* non-scaling-stroke matters: the viewBox is the stage's pixel box, so this is
+   normally a no-op — but it is what keeps the line the same weight if the SVG
+   is ever asked to scale. */
+.thread-base,
+.thread-fill {
+  fill: none;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+}
+.thread-base {
+  stroke: var(--line-2);
+}
+.thread-fill {
+  stroke: var(--signal);
+}
+
+.signal {
+  fill: var(--signal);
+  /* Hidden before the transfer begins and left visible at the far end, where it
+     reads as "connected". */
+  opacity: var(--draw);
+}
+
+/* The halo pulses only while the signal is mid-flight. It is the page's one
+   decorative animation, and it is gated on a live transfer so it never
+   idles. */
+.signal-halo {
+  fill: var(--signal);
+  opacity: calc(var(--draw) * (1 - var(--restore)) * 0.3);
+  animation: pulse 1.5s var(--ease) infinite;
+}
+
+@keyframes pulse {
+  50% {
+    transform: scale(2.1);
+    opacity: 0.06;
+  }
+}
+
+.transfer-badge {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  z-index: 3;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  white-space: nowrap;
+}
+.transfer-symbol {
+  font-size: 26px;
+  line-height: 1;
+  color: var(--signal);
+}
+.transfer-badge b {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--fg);
+}
+.transfer-badge small {
+  font: 9px/1 var(--mono);
+  letter-spacing: 0.16em;
+  color: var(--fg-faint);
+}
+
+.journey-bottom {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  padding: 18px clamp(20px, 4vw, 48px) 24px;
+}
+
+.phase-tabs {
+  display: flex;
+  gap: 22px;
+}
+.phase-tabs button {
+  display: flex;
+  gap: 10px;
+  min-width: 110px;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 2px solid var(--line-2);
+  background: none;
+  color: var(--fg-faint);
+  font: 12px/1 var(--mono);
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.25s var(--ease), border-color 0.25s var(--ease);
+}
+.phase-tabs button span {
+  font-family: var(--sans);
+}
+.phase-tabs button:hover {
+  color: var(--fg-muted);
+}
+.phase-tabs button.is-active {
+  color: var(--signal);
+  border-color: var(--signal);
+}
+
+.journey-hint {
+  font: 9px/1 var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--fg-faint);
+}
+.skip-story {
+  font-size: 12px;
+  color: var(--fg-muted);
+  transition: color 0.2s var(--ease);
+}
+.skip-story:hover {
+  color: var(--accent);
+}
+
+/* --------------------------------------------------- the pause switch ----- */
+/* Pausing is a first-class state, not an error path. Forcing --restore to 1
+   is what makes the paused frame show a finished handoff instead of two
+   devices and an undrawn line. */
+.motion-paused *,
+.motion-paused *::before,
+.motion-paused *::after {
+  animation-play-state: paused !important;
+  transition-duration: 0s !important;
+}
+.motion-paused .journey {
+  --restore: 1 !important;
+  --travel: 1 !important;
+  --draw: 1 !important;
+}
+.motion-paused .reveal,
+.motion-paused .reveal-stagger > *,
+.motion-paused [data-shot],
+.motion-paused [data-hero],
+.motion-paused .step__text,
+.motion-paused .step__art {
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* ------------------------------------------------------------- reveals --- */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
+}
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+.reveal-stagger > * {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+}
+.reveal-stagger.is-in > * {
+  opacity: 1;
+  transform: none;
+}
+.reveal-stagger.is-in > *:nth-child(1) { transition-delay: 0.02s; }
+.reveal-stagger.is-in > *:nth-child(2) { transition-delay: 0.09s; }
+.reveal-stagger.is-in > *:nth-child(3) { transition-delay: 0.16s; }
+.reveal-stagger.is-in > *:nth-child(4) { transition-delay: 0.23s; }
+
+/* screenshots get their own reveal so a figure arrives with its caption */
+[data-shot] {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.7s var(--ease), transform 0.7s var(--ease);
+}
+[data-shot].is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* hero entrance, staggered by document order */
+[data-hero] {
+  opacity: 0;
+  transform: translateY(18px);
+}
+.motion-hero.is-ready [data-hero] {
+  opacity: 1;
+  transform: none;
+}
+.motion-hero.is-ready [data-hero='1'] { transition: opacity 0.7s var(--ease) 0.04s, transform 0.7s var(--ease) 0.04s; }
+.motion-hero.is-ready [data-hero='2'] { transition: opacity 0.8s var(--ease) 0.12s, transform 0.8s var(--ease) 0.12s; }
+.motion-hero.is-ready [data-hero='3'] { transition: opacity 0.7s var(--ease) 0.24s, transform 0.7s var(--ease) 0.24s; }
+.motion-hero.is-ready [data-hero='4'] { transition: opacity 0.7s var(--ease) 0.34s, transform 0.7s var(--ease) 0.34s; }
+.motion-hero.is-ready [data-hero='5'] { transition: opacity 0.7s var(--ease) 0.44s, transform 0.7s var(--ease) 0.44s; }
+
+/* steps rail fill */
+.steps__rail i {
+  transition: height 0.25s linear;
+}
+
+/* the travelling dot in the pairing diagram */
+.wire i {
+  animation: travel 2.4s var(--ease) infinite;
+}
+@keyframes travel {
+  0% { left: 0; opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { left: calc(100% - 5px); opacity: 0; }
+}
+
+/* ------------------------------------------------------- reduced motion --- */
+/* Not a courtesy. The page hides content behind these animations and runs a
+   290svh scroll sequence, so if this block does not undo all of it, the
+   experience for someone who asked for less motion is a broken page rather
+   than a plainer one. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .reveal,
+  .reveal-stagger > *,
+  [data-shot],
+  [data-hero],
+  .step__text,
+  .step__art {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  /* The journey collapses to its final frame at its natural height. A sticky
+     290svh stage for a sequence nobody can watch animate is 290svh of
+     scrolling through a still image. */
+  .journey {
+    height: auto;
+    --restore: 1 !important;
+    --travel: 1 !important;
+    --draw: 1 !important;
+  }
+  .journey-sticky {
+    position: relative;
+    top: 0;
+    height: auto;
+    padding-block: 64px 40px;
+  }
+  /* The stage no longer has a viewport height to divide up, so the map takes
+     its own height back and the device screens are sized by an explicit
+     minimum instead of by flex leftovers. Without this the whole diagram
+     squeezes to 150px and the two screenshots become unreadable slivers. */
+  .handoff-map {
+    flex: none;
+    min-height: 300px;
+  }
+  .source-node .device-screen img,
+  .destination-node .destination-body {
+    transform: none !important;
+  }
+  .journey-hint,
+  .scroll-cue {
+    display: none;
+  }
+  .signal-halo {
+    display: none;
+  }
+  .phase-tabs {
+    display: none;
+  }
+  .scroll-rule {
+    animation: none;
+  }
+  .shot:hover img {
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------ responsive -- */
+@media (max-width: 760px) {
+  .motion-hero {
+    min-height: calc(100svh - var(--nav-h));
+    padding: 80px 18px 100px;
+  }
+  .motion-hero h1 {
+    font-size: clamp(40px, 10.5vw, 66px);
+  }
+  .intro-copy {
+    font-size: 16px;
+  }
+  .hero-actions {
+    flex-direction: column;
+    gap: 20px;
+  }
+  .hero-actions .btn {
+    width: 100%;
+  }
+  .hero-meta {
+    gap: 12px;
+    font-size: 10px;
+  }
+  .hero-meta span + span {
+    padding-left: 12px;
+  }
+
+  .journey {
+    height: 250svh;
+  }
+  .journey-heading {
+    margin-top: 20px;
+  }
+  .journey-heading h2 {
+    font-size: 28px;
+  }
+  .journey-desc {
+    max-width: 290px;
+    margin-inline: auto;
+    font-size: 13px;
+  }
+
+  /* Stacked rather than side by side. main.js measures the two screens and
+     redraws the thread down the page on the next resize, so the path keeps
+     connecting whatever this layout does. The screens stay top-cropped --
+     the interesting part of a capture list is its header. */
+  .handoff-map {
+    flex-direction: column;
+    justify-content: center;
+    gap: 54px;
+    padding: 14px 22px 26px;
+  }
+  .device-node {
+    flex: 0 1 auto;
+    width: 68%;
+    max-width: 260px;
+  }
+  .source-node {
+    align-self: flex-start;
+  }
+  .destination-node {
+    align-self: flex-end;
+  }
+  /* A hard floor on the screenshot area. The frames fill what is left after
+     their own labels and bars, which on a short phone can be nothing -- and a
+     device mockup with no screen in it is worse than a slightly taller
+     section. */
+  .device-screen img {
+    min-height: 86px;
+  }
+  .screen-bar {
+    padding: 6px 8px;
+    font-size: 9px;
+  }
+  .device-label {
+    margin-bottom: 7px;
+  }
+  .device-label > span {
+    font-size: 9px;
+  }
+  .device-label > b {
+    font-size: 10px;
+  }
+  .screen-bottom {
+    padding: 5px 8px;
+    font-size: 8px;
+  }
+  .waiting-state {
+    gap: 5px;
+  }
+  .waiting-state > span {
+    font-size: 22px;
+  }
+  .waiting-state b {
+    font-size: 10px;
+  }
+  .waiting-state small {
+    font-size: 9px;
+  }
+  .transfer-badge {
+    top: 46%;
+    right: 20px;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    font-size: 10px;
+  }
+  .transfer-badge small,
+  .transfer-symbol {
+    display: none;
+  }
+
+  .journey-bottom {
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 14px 20px 22px;
+  }
+  .phase-tabs {
+    gap: 14px;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .phase-tabs button {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+  }
+  .journey-hint {
+    display: none;
+  }
+  .skip-story {
+    margin-left: auto;
+  }
+}
+
+/* Short viewports. A 700px-tall laptop has 636px of stage, and the heading
+   and phase tabs together want about 200 of it -- which leaves the map short
+   enough that the device screens become letterbox strips. The headline and the
+   stage padding give theirs up first, since they are the two things still
+   legible at half scale. */
+@media (max-height: 820px) and (min-width: 761px) {
+  .journey-heading h2 {
+    font-size: 32px;
+  }
+  .journey-heading {
+    margin-top: 2px;
+  }
+  .journey-heading .journey-desc {
+    display: none;
+  }
+  .journey-top {
+    padding-top: 14px;
+  }
+  .journey-bottom {
+    padding-block: 12px 14px;
+  }
+  .device-node {
+    max-width: 360px;
+  }
+}
+
+@media (max-height: 660px) and (min-width: 761px) {
+  .journey-kicker {
+    margin-bottom: 8px;
+  }
+  .journey-heading h2 {
+    font-size: 26px;
+  }
+  .device-node {
+    max-width: 300px;
+  }
+}
+
+@media (max-width: 760px) and (max-height: 820px) {
+  .journey {
+    height: 240svh;
+  }
+  .handoff-map {
+    gap: 40px;
+    padding-block: 8px 16px;
+  }
+  .device-node {
+    width: 62%;
+  }
+  .device-screen img {
+    min-height: 62px;
+  }
+  .journey-heading h2 {
+    font-size: 24px;
+  }
+  .journey-heading {
+    margin-top: 10px;
+  }
+  .journey-desc {
+    display: none;
+  }
+  .journey-bottom {
+    padding-block: 10px 14px;
+  }
+}
