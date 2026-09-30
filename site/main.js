@@ -41,7 +41,7 @@
   var REPO = 'abhishekdana1999/workspace-clone';
   var RELEASE_LATEST = 'https://github.com/' + REPO + '/releases/latest';
   var RELEASE_FILE = 'https://github.com/' + REPO + '/releases/latest/download/';
-  var PUBLISHED = false;
+  var PUBLISHED = true;
 
   var BUILDS = {
     mac: {
