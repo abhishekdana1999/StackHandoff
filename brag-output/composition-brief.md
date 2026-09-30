@@ -17,12 +17,22 @@ another.
   (design tokens), `src/screens/*` (Capture / Transfer / RestorePreview flows)
 - Product name: **Workspace Clone**
 - Tagline / strongest claim: "Pick up right where you left off — on the other laptop."
-- Key UI or visual moment to recreate: the app window — sidebar + "Capture a
-  workspace" manifest list (folders + git branches, tools, env vars), the
-  send/transfer moment, and the restore-preview list with statuses
+- **Product visuals are real screenshots, not recreations.** Capture them with
+  `scripts/capture-shots.mjs` (puppeteer-core → system Chrome) against the dev
+  server on :1420, using the browser-only Tauri IPC mock in `src/dev/mockTauri.ts`
+  to seed the Capture / Transfer / Restore flows. Screens land in
+  `assets/shots/` and are used as backgrounds (never `Math.random`, no network at
+  render time — local PNGs only, so the render stays deterministic).
+- Key UI to show: the Capture screen (workspace name, project rows with git
+  state, app adapters), the Transfer destinations card with the target machine
+  selected, the Restore preview plan, and the Restore report with every step Done.
+- **Masking:** fixtures use generic device names — source `MacBook Pro`, target
+  `Office PC` — plus neutral paths/accounts (`/Users/developer/...`,
+  `github.com/developer/workspace-clone`). No real machine, user, or host name
+  may appear on screen while the names are masked.
 - Copy that must appear verbatim:
-  - "gate: git status: exactly the changes you left" (paraphrase as UI mono row)
-  - Manifest rows: `openshorts · main`, `site · feat/theme`, `node · git · gh`
+  - "gate: git status: exactly what you left" (paraphrase as UI mono row)
+  - The real screen's own copy is the source of truth; do not re-typeset app text.
 
 ## Creative Direction
 - Tone preset: `app-store`
@@ -54,9 +64,9 @@ Use `<output-dir>/brag-plan.md` as the creative contract.
 
 Scene summary:
 1. The promise — 3.0s — two laptops, "Close your laptop." / packet flight / "Open the other one."
-2. Capture — 5.2s — light app window; manifest rows arrive on the beat grid
-3. Send — 4.4s — packet crosses; ghost window receives; green "Received" check
-4. Restore — 5.6s — restore-preview rows flip to Applied; mono git-status payoff
+2. Capture — 5.2s — real Capture screen assembles in four beat-synced strips
+3. Send — 4.4s — real destinations card; packet crosses; ghost window receives; green "Received" check
+4. Restore — 6.0s — real restore plan in four strips → crossfade to the real report; mono git-status payoff
 5. Outro — 3.2s — logo card lands at 20.02s (beat-locked); bed fades
 
 ## Audio
@@ -101,8 +111,8 @@ do not enter the `hyperframes` entry-point intent interview and do not route int
 its generic promo / launch-video workflow.
 
 Requirements:
-- Show at least one real UI element from the source project (the recreated app
-  window with sidebar + manifest rows).
+- Show real UI from the source project — use captured screenshots of the real
+  app in `assets/shots/`, not a hand-built recreation of the interface.
 - Keep all text readable in the final render.
 - Keep the video within 15-25 seconds (target 21.4s).
 - Include the planned music/SFX layer.

@@ -2,6 +2,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+// Browser-only fake Tauri IPC used for product screenshots. Inert inside the
+// real Tauri webview and in production builds (see src/dev/mockTauri.ts).
+import './dev/mockTauri';
 import { TauriProvider } from '@hooks/useTauri';
 import { initTheme } from './store/useThemeStore';
 import App from './App';

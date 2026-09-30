@@ -194,155 +194,49 @@
         top: 452px;
       }
 
-      /* ---------- scene 2/4: the app window ---------- */
+      /* ---------- scenes 2/4: the real product window ---------- */
       .win {
         position: absolute;
-        left: 550px;
-        top: 318px;
-        width: 820px;
-        height: 604px;
-        border-radius: 16px;
-        background: #ffffff;
-        border: 1px solid #e4e4e7;
+        left: 400px;
+        top: 240px;
+        width: 1120px;
+        height: 700px;
+        border-radius: 14px;
+        overflow: hidden;
+        background: #101014;
+        border: 1px solid #3f3f46;
         box-shadow: 0 40px 110px rgba(0, 0, 0, 0.55);
-        color: #18181b;
       }
-      .titlebar {
+      .strip {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 175px;
+        background-repeat: no-repeat;
+        background-size: 1120px 700px;
+        background-image: url("assets/shots/capture.png");
+      }
+      #s2-s0 { top: 0; background-position: 0 0; }
+      #s2-s1 { top: 175px; background-position: 0 -175px; }
+      #s2-s2 { top: 350px; background-position: 0 -350px; }
+      #s2-s3 { top: 525px; background-position: 0 -525px; }
+      .win.s4 .strip {
+        background-image: url("assets/shots/restore-preview.png");
+      }
+      #s4-s0 { top: 0; background-position: 0 0; }
+      #s4-s1 { top: 175px; background-position: 0 -175px; }
+      #s4-s2 { top: 350px; background-position: 0 -350px; }
+      #s4-s3 { top: 525px; background-position: 0 -525px; }
+      #s4-report {
         position: absolute;
         left: 0;
         top: 0;
-        right: 0;
-        height: 56px;
-        border-bottom: 1px solid #ececee;
-        display: flex;
-        align-items: center;
-        padding: 0 18px;
-        gap: 8px;
-      }
-      .titlebar .dot {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-      }
-      .titlebar .dot.r { background: #ff5f57; }
-      .titlebar .dot.y { background: #febc2e; }
-      .titlebar .dot.g { background: #28c840; }
-      .titlebar .doc-title {
-        position: absolute;
-        left: 0;
         width: 100%;
-        text-align: center;
-        font-size: 14px;
-        font-weight: 600;
-        color: #3f3f46;
-        pointer-events: none;
-      }
-      .sidebar {
-        position: absolute;
-        left: 0;
-        top: 56px;
-        bottom: 0;
-        width: 178px;
-        border-right: 1px solid #ececee;
-        background: #f6f6f8;
-        padding: 16px 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-      }
-      .nav {
-        height: 42px;
-        border-radius: 10px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 0 12px;
-        font-size: 13px;
-        font-weight: 550;
-        color: #52525b;
-      }
-      .nav .ico {
-        width: 12px;
-        height: 12px;
-        border-radius: 4px;
-        background: #d4d4d8;
-      }
-      .nav.active {
-        background: #eef2ff;
-        color: #4338ca;
-      }
-      .nav.active .ico {
-        background: #6366f1;
-      }
-      .main {
-        position: absolute;
-        left: 178px;
-        top: 56px;
-        right: 0;
-        bottom: 0;
-        padding: 26px 26px 20px;
-        overflow: hidden;
-      }
-      .main h3 {
-        font-size: 21px;
-        font-weight: 650;
-        letter-spacing: -0.01em;
-        margin-bottom: 18px;
-      }
-      .row {
-        position: relative;
-        height: 74px;
-        margin-bottom: 13px;
-        border: 1px solid #e4e4e7;
-        border-radius: 12px;
-        background: #ffffff;
-        display: flex;
-        align-items: center;
-        padding: 0 16px;
-        gap: 12px;
-      }
-      .row .dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: #6366f1;
-        flex: 0 0 auto;
-      }
-      .row .name {
-        font-size: 15px;
-        font-weight: 600;
-        color: #18181b;
-        white-space: nowrap;
-      }
-      .row .spacer {
-        flex: 1;
-      }
-      .chip {
-        font-size: 12px;
-        font-weight: 600;
-        padding: 4px 10px;
-        border-radius: 999px;
-        border: 1px solid transparent;
-      }
-      .chip.indigo {
-        background: #eef2ff;
-        border-color: #c7d2fe;
-        color: #4338ca;
-      }
-      .chip.grey {
-        background: #f4f4f5;
-        border-color: #e4e4e7;
-        color: #52525b;
-      }
-      .chip.green {
-        background: #f0fdf4;
-        border-color: #bbf7d0;
-        color: #15803d;
-      }
-      .chip.pending {
-        background: #f4f4f5;
-        border-color: #e4e4e7;
-        color: #71717a;
+        height: 100%;
+        background-repeat: no-repeat;
+        background-size: 100% 100%;
+        background-image: url("assets/shots/restore-report.png");
+        opacity: 0;
       }
 
       /* ---------- scene 3: transfer ---------- */
@@ -354,15 +248,21 @@
         border: 1px solid #e4e4e7;
         box-shadow: 0 40px 110px rgba(0, 0, 0, 0.5);
         color: #18181b;
+        overflow: hidden;
       }
       #s3-send {
-        left: 340px;
-        top: 560px;
-        background: #ffffff;
+        left: 300px;
+        top: 430px;
+        width: 880px;
+        height: 629px;
+        background-size: 100% 100%;
+        background-image: url("assets/shots/dest-card.png");
       }
       #s3-ghost {
-        left: 980px;
-        top: 560px;
+        left: 1310px;
+        top: 640px;
+        width: 500px;
+        height: 280px;
       }
       #ghost-off {
         position: absolute;
@@ -420,54 +320,18 @@
         font-size: 15px;
         color: #52525b;
       }
-      .win-sm .sm-body {
-        position: absolute;
-        left: 0;
-        top: 56px;
-        right: 0;
-        bottom: 0;
-        padding: 24px;
-        display: flex;
-        flex-direction: column;
-        gap: 16px;
-      }
-      .send-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-      }
-      .send-row .lbl {
-        font-size: 14px;
-        color: #52525b;
-      }
-      .send-row .who {
-        font-size: 15px;
-        font-weight: 650;
-        color: #18181b;
-      }
-      .btn-send {
-        margin-top: 6px;
-        height: 48px;
-        border-radius: 12px;
-        background: #4f46e5;
-        color: #ffffff;
-        font-size: 15px;
-        font-weight: 650;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border: 1px solid #4338ca;
-        box-shadow: 0 8px 20px rgba(79, 70, 229, 0.35);
-      }
       #s3-flight {
         position: absolute;
-        left: 585px;
-        top: 470px;
-        width: 750px;
+        left: 1188px;
+        top: 745px;
+        width: 114px;
         height: 3px;
         border-radius: 2px;
         background: rgba(255, 255, 255, 0.13);
+      }
+      #packet3 {
+        left: 1180px;
+        top: 728px;
       }
 
       /* ---------- scene 4 payoff bar ---------- */
@@ -475,7 +339,7 @@
         position: absolute;
         left: 0;
         right: 0;
-        top: 936px;
+        top: 972px;
         height: 84px;
         border-top: 1px solid rgba(255, 255, 255, 0.08);
         background: rgba(23, 23, 28, 0.92);
@@ -568,26 +432,10 @@
         <div data-hf-id="hf-in90" id="s2-cap" class="cap cap-lg">It captures your setup — as a manifest.</div>
 
         <div data-hf-id="hf-5goe" id="s2-win" class="win">
-          <div data-hf-id="hf-t179" class="titlebar">
-            <div data-hf-id="hf-rppj" class="dot r"></div>
-            <div data-hf-id="hf-pemc" class="dot y"></div>
-            <div data-hf-id="hf-hiea" class="dot g"></div>
-            <div data-hf-id="hf-2lx5" class="doc-title">Workspace Clone</div>
-          </div>
-          <div data-hf-id="hf-96rw" class="sidebar">
-            <div data-hf-id="hf-u16r" class="nav active"><span data-hf-id="hf-gm9w" class="ico"></span>Capture</div>
-            <div data-hf-id="hf-uifo" class="nav"><span data-hf-id="hf-qj98" class="ico"></span>Transfer</div>
-            <div data-hf-id="hf-0acl" class="nav"><span data-hf-id="hf-pcc5" class="ico"></span>Workspaces</div>
-            <div data-hf-id="hf-apya" class="nav"><span data-hf-id="hf-pqn6" class="ico"></span>Devices</div>
-            <div data-hf-id="hf-l1du" class="nav"><span data-hf-id="hf-rq6b" class="ico"></span>Settings</div>
-          </div>
-          <div data-hf-id="hf-k15r" class="main">
-            <h3 data-hf-id="hf-1sdc">Capture a workspace</h3>
-            <div data-hf-id="hf-thy4" class="row"><div data-hf-id="hf-dmti" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-9gry" class="dot"></span><span data-hf-id="hf-5zp3" class="name">openshorts</span><span data-hf-id="hf-as4p" class="spacer"></span><span data-hf-id="hf-btu5" class="chip grey">main</span></div></div>
-            <div data-hf-id="hf-lt04" class="row"><div data-hf-id="hf-fmbu" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-zcc2" class="dot"></span><span data-hf-id="hf-dlz3" class="name">site</span><span data-hf-id="hf-2gv1" class="spacer"></span><span data-hf-id="hf-0b1d" class="chip indigo">feat/theme</span></div></div>
-            <div data-hf-id="hf-km31" class="row"><div data-hf-id="hf-g0mv" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-zqn3" class="dot"></span><span data-hf-id="hf-f50f" class="name">node · git · gh</span><span data-hf-id="hf-3ns4" class="spacer"></span><span data-hf-id="hf-kvpd" class="chip green">ready</span></div></div>
-            <div data-hf-id="hf-l0e2" class="row"><div data-hf-id="hf-gexw" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-04y4" class="dot"></span><span data-hf-id="hf-l5b6" class="name mono" style="font-size:14px;">SUPABASE_URL</span><span data-hf-id="hf-39h3" class="spacer"></span><span data-hf-id="hf-gqi7" class="chip grey">env</span></div></div>
-          </div>
+          <div data-hf-id="hf-zz01" id="s2-s0" class="strip"></div>
+          <div data-hf-id="hf-zz02" id="s2-s1" class="strip"></div>
+          <div data-hf-id="hf-zz03" id="s2-s2" class="strip"></div>
+          <div data-hf-id="hf-zz04" id="s2-s3" class="strip"></div>
         </div>
       </section>
 
@@ -596,18 +444,7 @@
         <div data-hf-id="hf-4sap" id="s3-cap1" class="cap cap-lg">Sent directly between your machines.</div>
         <div data-hf-id="hf-bcpc" id="s3-cap2" class="cap cap-sub">No server. No cloud.</div>
 
-        <div data-hf-id="hf-lpje" id="s3-send" class="win-sm">
-          <div data-hf-id="hf-hdop" class="titlebar">
-            <div data-hf-id="hf-kl1j" class="dot r"></div>
-            <div data-hf-id="hf-wb5o" class="dot y"></div>
-            <div data-hf-id="hf-mtza" class="dot g"></div>
-            <div data-hf-id="hf-5jgs" class="doc-title">Transfer</div>
-          </div>
-          <div data-hf-id="hf-9555" class="sm-body">
-            <div data-hf-id="hf-uhot" class="send-row"><span data-hf-id="hf-vvqn" class="lbl">Send workspace to</span><span data-hf-id="hf-bv8x" class="who">BISWAJITA</span></div>
-            <div data-hf-id="hf-txgf" class="btn-send">Send →</div>
-          </div>
-        </div>
+        <div data-hf-id="hf-lpje" id="s3-send" class="win-sm"></div>
 
         <div data-hf-id="hf-qsut" id="s3-ghost" class="win-sm">
           <div data-hf-id="hf-ssom" id="ghost-off"><div data-hf-id="hf-qkf7" class="pulse"></div><span data-hf-id="hf-99h4">Awaiting workspace…</span></div>
@@ -626,27 +463,12 @@
       <section data-hf-id="hf-3ioe" id="scene-4" class="clip" data-start="12.6" data-duration="6">
         <div data-hf-id="hf-0gsw" id="s4-cap" class="cap cap-lg">Restore it — with your edits intact.</div>
 
-        <div data-hf-id="hf-6x3k" id="s4-win" class="win">
-          <div data-hf-id="hf-ikls" class="titlebar">
-            <div data-hf-id="hf-k6qi" class="dot r"></div>
-            <div data-hf-id="hf-v48l" class="dot y"></div>
-            <div data-hf-id="hf-n8ab" class="dot g"></div>
-            <div data-hf-id="hf-qibx" class="doc-title">Workspace Clone</div>
-          </div>
-          <div data-hf-id="hf-3yqs" class="sidebar">
-            <div data-hf-id="hf-vu9v" class="nav active"><span data-hf-id="hf-s4hc" class="ico"></span>Capture</div>
-            <div data-hf-id="hf-klws" class="nav"><span data-hf-id="hf-qxk9" class="ico"></span>Transfer</div>
-            <div data-hf-id="hf-pho9" class="nav"><span data-hf-id="hf-rbva" class="ico"></span>Workspaces</div>
-            <div data-hf-id="hf-jwsm" class="nav"><span data-hf-id="hf-myhz" class="ico"></span>Devices</div>
-            <div data-hf-id="hf-bwrq" class="nav"><span data-hf-id="hf-nct0" class="ico"></span>Settings</div>
-          </div>
-          <div data-hf-id="hf-lwm7" class="main">
-            <h3 data-hf-id="hf-h806">Restore preview</h3>
-            <div data-hf-id="hf-mzx7" class="row"><div data-hf-id="hf-gt8x" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-0j95" class="dot"></span><span data-hf-id="hf-ys6q" class="name">Clone openshorts · main</span><span data-hf-id="hf-4ge6" class="spacer"></span><span data-hf-id="hf-7784" class="chip pending">…</span><span data-hf-id="hf-icgo" class="chip green s4-applied">Applied</span></div></div>
-            <div data-hf-id="hf-ne88" class="row"><div data-hf-id="hf-h7jy" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-0xk6" class="dot"></span><span data-hf-id="hf-2mnk" class="name">Tools: node · git · gh</span><span data-hf-id="hf-4235" class="spacer"></span><span data-hf-id="hf-wi98" class="chip pending">…</span><span data-hf-id="hf-eyfi" class="chip green s4-applied">Ready</span></div></div>
-            <div data-hf-id="hf-m7b5" class="row"><div data-hf-id="hf-hluz" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-1bv7" class="dot"></span><span data-hf-id="hf-kkb4" class="name">Set environment variables</span><span data-hf-id="hf-5908" class="spacer"></span><span data-hf-id="hf-vbc5" class="chip pending">…</span><span data-hf-id="hf-v3zk" class="chip green s4-applied">Applied</span></div></div>
-            <div data-hf-id="hf-mlm6" class="row"><div data-hf-id="hf-i060" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-1q68" class="dot"></span><span data-hf-id="hf-tvpm" class="name mono" style="font-size:14px;">M note.txt · ?? new.txt</span><span data-hf-id="hf-4up7" class="spacer"></span><span data-hf-id="hf-1gmh" class="chip indigo s4-patch">patch</span></div></div>
-          </div>
+        <div data-hf-id="hf-6x3k" id="s4-win" class="win s4">
+          <div data-hf-id="hf-aa01" id="s4-s0" class="strip"></div>
+          <div data-hf-id="hf-aa02" id="s4-s1" class="strip"></div>
+          <div data-hf-id="hf-aa03" id="s4-s2" class="strip"></div>
+          <div data-hf-id="hf-aa04" id="s4-s3" class="strip"></div>
+          <div data-hf-id="hf-aa05" id="s4-report"></div>
         </div>
 
         <div data-hf-id="hf-8c07" id="s4-git">
@@ -736,17 +558,15 @@
         { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" },
         3.15
       );
-      // manifest rows — snapped to every-other-beat windows (4.02/5.03/6.03/7.02)
-      const captureRows = Array.prototype.slice.call(
-        document.querySelectorAll(".row-inner")
-      );
+      // real capture screenshot — assembled in four strips on the beat grid
+      const captureStrips = ["#s2-s0", "#s2-s1", "#s2-s2", "#s2-s3"];
       const capRowTimes = [4.02, 5.03, 6.03, 7.02];
       capRowTimes.forEach((t, i) => {
         tl.fromTo(
-          captureRows[i],
-          { opacity: 0, y: 16 },
+          captureStrips[i],
+          { opacity: 0, y: 18 },
           { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" },
-          t // beat-grid: capture row n at <t>s
+          t // beat-grid: capture strip n at <t>s
         );
       });
 
@@ -769,7 +589,7 @@
         { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" },
         8.5
       );
-      // packet crosses to the ghost machine (x: 544 -> 1184)
+      // packet crosses to the ghost machine (x: 1180 -> 1350)
       tl.to("#packet3", { opacity: 1, duration: 0.05 }, 9.1);
       tl.to(
         "#packet3",
@@ -781,7 +601,7 @@
         },
         9.1
       );
-      tl.to("#packet3", { x: 640, duration: 1.3, ease: "power1.inOut" }, 9.1);
+      tl.to("#packet3", { x: 170, duration: 1.3, ease: "power1.inOut" }, 9.1);
       // received — ghost powers on, check pops on the beat
       tl.to("#ghost-off", { opacity: 0, duration: 0.25 }, 10.42);
       tl.fromTo(
@@ -816,35 +636,19 @@
         { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" },
         12.8
       );
-      // restore rows flip — every-other-beat windows (13.52/14.52/15.52/16.52)
-      const restoreRows = Array.prototype.slice.call(
-        document.querySelectorAll("#s4-win .row-inner")
-      );
-      const applied = Array.prototype.slice.call(
-        document.querySelectorAll("#s4-win .s4-applied")
-      );
+      // real restore-plan screenshot — assembled in four strips on the beat grid
+      const restoreStrips = ["#s4-s0", "#s4-s1", "#s4-s2", "#s4-s3"];
       const restoreTimes = [13.52, 14.52, 15.52, 16.52];
       restoreTimes.forEach((t, i) => {
         tl.fromTo(
-          restoreRows[i],
-          { opacity: 0, y: 16 },
+          restoreStrips[i],
+          { opacity: 0, y: 18 },
           { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" },
-          t // beat-grid: restore row n at <t>s
-        );
-        const pendingChip = restoreRows[i].querySelector(".chip.pending");
-        if (pendingChip) {
-          tl.to(pendingChip, { opacity: 0, duration: 0.15 }, t + 0.05);
-        }
-      });
-      // the three status chips flip to Applied/Ready
-      [13.57, 14.57, 15.57].forEach((t, i) => {
-        tl.fromTo(
-          applied[i],
-          { opacity: 0, scale: 0.6 },
-          { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2)" },
-          t
+          t // beat-grid: restore strip n at <t>s
         );
       });
+      // plan completes -> crossfade to the restore report as the git line lands
+      tl.to("#s4-report", { opacity: 1, duration: 0.45, ease: "power2.out" }, 17.12);
       // the git-status payoff line
       tl.fromTo(
         "#s4-git",

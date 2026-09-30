@@ -123,6 +123,25 @@ Watch it in action: launch videos made by [/brag](https://github.com/latent-spac
 | Poster frames | `brag-output/brag-poster.jpg`, `brag-output/brag-shorts-poster.jpg` |
 | Captions, description and cutdown notes | `brag-output/share-copy.txt` |
 
+The videos show the **real app screens**, not a mock-up of them: each shot is a
+screenshot of this codebase's own UI, captured by `scripts/capture-shots.mjs`
+(puppeteer-core driving the real React app in Chrome, with a browser-only Tauri
+IPC mock in `src/dev/mockTauri.ts` supplying the data). The mock is dev-only —
+it installs itself only when `import.meta.env.DEV` is set and no real Tauri host
+is present, so the desktop build is untouched. Device names in the captured data
+are masked (`MacBook Pro` → `Office PC`), as are local paths and the git remote,
+so no real machine or account name appears on screen.
+
+To refresh the shots and re-render:
+
+```bash
+npm run dev                       # dev server on :1420
+node scripts/capture-shots.mjs    # writes brag-output/shots/{land,port}/*.png
+# copy them into the compositions, then:
+cd brag-output/composition           && npx hyperframes render --quality high --output ../brag.mp4
+cd brag-output/composition-vertical  && npx hyperframes render --quality high --output ../brag-shorts.mp4
+```
+
 The compositions and storyboard live in `brag-output/` (`brag-plan.md`,
-`composition-brief.md`, `composition/`, `composition-vertical/`) — re-render them
-any time with `npx hyperframes render --quality high --output ../brag.mp4`.
+`composition-brief.md`, `composition/`, `composition-vertical/`) — run
+`npx hyperframes check` before any render.

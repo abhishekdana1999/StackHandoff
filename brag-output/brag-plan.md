@@ -19,14 +19,28 @@ time: **"Close your laptop."** — a sealed packet flies from the left machine t
 the right — **"Open the other one."** The setup followed you.
 
 ## Key moments (the middle)
-- **The manifest fills in.** The captured app window lists real rows — project
-  folders with their git branches (`openshorts · main`, `site · feat/theme`),
-  runtimes (`node · git · gh`), an env var — arriving one by one on the beat.
+- **The manifest fills in.** The captured app window is the real Capture screen —
+  the workspace name field, the two project rows with their git state, the app
+  adapters — arriving in four horizontal strips, one per beat, until the whole
+  window is standing there.
 - **The transfer lands.** The packet crosses to the second machine and a green
-  "Received" check pops; copy: direct between machines, no cloud.
-- **The delta survives.** The restore-preview flips steps to *Applied* one by
-  one, ending on a mono `git status` row — the uncommitted edits travelled as a
-  patch, so `git status` shows exactly what you left.
+  "Received" check pops; the send window beside it is the real destinations
+  card with the paired machine selected. Copy: direct between machines, no cloud.
+- **The delta survives.** The restore-preview assembles the same way, then
+  crossfades to the real restore report — every step Done — landing on a mono
+  `git status` bar: the uncommitted edits travelled as a patch, so `git status`
+  shows exactly what you left.
+
+## Screenshot provenance
+Every product surface in the film is a **real screenshot of the app**, captured
+by `scripts/capture-shots.mjs` (puppeteer-core driving the real React app in
+Chrome against a browser-only Tauri IPC mock, `src/dev/mockTauri.ts`). Nothing
+is a hand-drawn recreation of the UI. The fixtures use **masked device names** —
+source `MacBook Pro`, target `Office PC` — and neutral paths/accounts
+(`/Users/developer/...`, `github.com/developer/workspace-clone`) so no real
+machine, user, or host name appears on screen while the names are masked.
+Re-run `npm run dev` + `node scripts/capture-shots.mjs` to refresh the shots,
+then re-render.
 
 ## Outro / punchline
 Full-bleed logo card: **Workspace Clone** / "Pick up right where you left off —
@@ -52,7 +66,7 @@ centerpiece scenes show the actual app UI in use, not marketing lists.
 - Text: `#f4f4f5` on dark; `#18181b` on the light app window; mono `#18181b` for git rows
 - Display font: system stack (`-apple-system, ui-sans-serif, system-ui`)
 - Mono font: `ui-monospace, SFMono-Regular, Menlo`
-- Strongest visual element: the recreated app window (sidebar + manifest rows) and the two-laptop transfer graphic
+- Strongest visual element: the real app screenshots (Capture, Transfer destinations, Restore preview/report) and the two-laptop transfer graphic
 
 ## Share copy (draft)
 ```
@@ -96,22 +110,23 @@ Music: bed from 0.0.
 Transition mood: clean wipe → Scene 2.
 
 ### Scene 2 — "Capture" — 3.0–8.2s (5.2s)
-Caption above: "It captures your setup — as a manifest." The app window (light
-mode) scales in at 3.1s. Four manifest rows pop in one by one:
-`openshorts · main`, `site · feat/theme`, `node · git · gh`, `SUPABASE_URL env`.
-Each row is small UI text revealed fast and held (the grid snaps to
-every-other-beat windows at 4.02/5.03/6.03/7.02 for the reading floor).
-Sequential/interaction: yes — window reveal, then 4 rows.
+Caption above: "It captures your setup — as a manifest." The real Capture screen
+(light mode) scales in at 3.1s, then assembles in four horizontal strips at
+4.02/5.03/6.03/7.02 (every-other-beat windows) until the whole window is visible:
+workspace name typed in, both projects and both app adapters ticked.
+Sequential/interaction: yes — window reveal, then 4 strips.
 Audio intent: tidy, productive; each arrival is a dry pop.
-Audio-coupled idea: window = impactSoft_medium_001 @3.05; each row =
+Audio-coupled idea: window = impactSoft_medium_001 @3.05; each strip =
 drop_001 @ its beat window.
 Transition mood: slide → Scene 3.
 
 ### Scene 3 — "Send" — 8.2–12.6s (4.4s)
 Captions: "Sent directly between your machines." then "No server. No cloud."
-Left window shrinks to a sender card ("Send to BISWAJITA"); a ghost window
-appears on the right "awaiting". The packet crosses (9.1→10.4), lands, the
-right window powers on with a green "Received" row (10.52, beat grid).
+Left window is a close-up of the real Transfer screen — the destinations card
+with the masked machine ("Office PC · On network · Paired") selected and the
+"Send to Office PC" panel open. A ghost window appears on the right "awaiting".
+The packet crosses (9.1→10.4), lands, the right window powers on with a green
+"Received" row (10.52, beat grid).
 Sequential/interaction: yes — ghost window, packet flight, received check.
 Audio intent: the crossing is the whoosh; the landing is a soft placement + a
 crisp notification chime on the check.
@@ -120,16 +135,15 @@ received check = impactPlate_light_000 @10.52.
 Transition mood: slide → Scene 4.
 
 ### Scene 4 — "Restore" — 12.6–18.6s (6.0s)
-Caption above: "Restore it — with your edits intact." The app window returns in
-restore-preview; four rows flip to status ("Applied" / "Ready") one by one at
-13.52/14.52/15.52/16.52 (every-other-beat windows): `Clone openshorts · main`,
-`Tools: node · git · gh`, `Set environment variables`, and a mono patch row
-`M note.txt · ?? new.txt`. Final mono line at 17.5s: "git status: exactly the
-changes you left."
-Sequential/interaction: yes — 4 status rows, then the mono payoff line.
-Audio intent: rhythmic, satisfying; each flip is a soft switch, the payoff line
+Caption above: "Restore it — with your edits intact." The real Restore preview
+window returns and assembles in four strips at
+13.52/14.52/15.52/16.52 (every-other-beat windows). At 17.12 it crossfades to
+the real Restore report — every step Done — and the mono payoff bar lands with
+it: "git status: exactly what you left."
+Sequential/interaction: yes — 4 strips, then the report crossfade + mono payoff.
+Audio intent: rhythmic, satisfying; each arrival is a soft switch, the payoff line
 is a single selection click.
-Audio-coupled idea: switch_001 per row flip; select_008 on the mono line.
+Audio-coupled idea: switch_001 per strip; select_008 on the mono line.
 Transition mood: soft crossfade → Scene 5.
 
 ### Scene 5 — "Outro" — 18.6–22.3s (3.7s)
