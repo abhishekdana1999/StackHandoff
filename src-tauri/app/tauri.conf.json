@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Workspace Clone",
+  "productName": "StackHandoff",
   "version": "0.1.0",
-  "identifier": "com.workspaceclone.WorkspaceClone",
+  "identifier": "com.stackhandoff.StackHandoff",
   "build": {
     "frontendDist": "../../dist",
     "beforeDevCommand": "npm run dev",
@@ -11,7 +11,7 @@
   "app": {
     "windows": [
       {
-        "title": "Workspace Clone",
+        "title": "StackHandoff",
         "width": 1180,
         "height": 780,
         "minWidth": 900,

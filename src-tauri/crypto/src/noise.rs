@@ -21,7 +21,7 @@ use snow::{params::NoiseParams, Builder, HandshakeState, TransportState};
 use workspace_clone_core::{CryptoError, Result, WorkspaceError};
 use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
 
-/// Noise protocol parameters for Workspace Clone.
+/// Noise protocol parameters for StackHandoff.
 pub const NOISE_PARAMS: &str = "Noise_IK_25519_ChaChaPoly_BLAKE2s";
 
 /// Upper bound on a single handshake message, used to pre-size buffers and to
@@ -381,7 +381,7 @@ pub fn safety_number_from_static_keys(a: &PublicKey, b: &PublicKey) -> String {
     };
 
     let mut hasher = Sha256::new();
-    hasher.update(b"workspace-clone/safety-number/v1");
+    hasher.update(b"stackhandoff/safety-number/v1");
     hasher.update(first.as_bytes());
     hasher.update(second.as_bytes());
     let digest = hasher.finalize();

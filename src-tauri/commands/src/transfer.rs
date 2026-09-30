@@ -151,7 +151,7 @@ pub async fn create_pairing_invitation(device_name: String) -> Result<PairingInv
         // Noise handshake. Carrying only one produced a device that could be
         // identified but not connected to.
         qr_data: format!(
-            "workspace-clone://pair?code={code}&signkey={signing_key}&noisekey={noise_key_b64}&device={device_id}"
+            "stackhandoff://pair?code={code}&signkey={signing_key}&noisekey={noise_key_b64}&device={device_id}"
         ),
         expires_at: (chrono::Utc::now() + chrono::Duration::minutes(5)).into(),
         inviting_device_id: device_id,
@@ -763,7 +763,7 @@ mod tests {
     fn peer(id: &str, address: &str) -> DiscoveredDevice {
         DiscoveredDevice {
             device_id: id.to_string(),
-            name: "BISWAJITA".to_string(),
+            name: "DESKTOP".to_string(),
             os: "windows".to_string(),
             app_version: "0.1.0".to_string(),
             protocol_version: 1,

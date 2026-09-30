@@ -161,7 +161,7 @@ function DeviceTab() {
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <p>
             In the operating system's credential store — Keychain on macOS, Credential Manager on
-            Windows — under the service name <span className="font-mono">workspace-clone</span>, in
+            Windows — under the service name <span className="font-mono">stackhandoff</span>, in
             three separate entries: the identity key, the Noise key, and the key that seals
             manifests at rest. Each is written only to its own entry.
           </p>

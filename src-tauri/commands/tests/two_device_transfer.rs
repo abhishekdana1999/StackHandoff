@@ -104,7 +104,7 @@ impl Machine {
     /// Bring up a machine, with its row in its own database.
     async fn new(name: &str) -> Self {
         let path = std::env::temp_dir().join(format!(
-            "workspace-clone-e2e-{name}-{}-{}.db",
+            "stackhandoff-e2e-{name}-{}-{}.db",
             std::process::id(),
             chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
         ));
@@ -662,11 +662,11 @@ async fn a_workspace_with_projects_and_requirements_arrives_intact() {
     let mut manifest = manifest_for(&unique_id("rich"), "Full Workspace", &mac);
     manifest.projects = vec![Project {
         id: "p1".to_string(),
-        name: "workspace-clone".to_string(),
-        source_path_hint: "projects/workspace-clone".to_string(),
+        name: "stackhandoff".to_string(),
+        source_path_hint: "projects/stackhandoff".to_string(),
         destination_location_id: "work".to_string(),
         git: Some(GitInfo {
-            remote_hint: Some("github.com/example/workspace-clone".to_string()),
+            remote_hint: Some("github.com/example/stackhandoff".to_string()),
             branch: "main".to_string(),
             commit: Some("0".repeat(40)),
             dirty_worktree: true,
@@ -1085,7 +1085,7 @@ fn the_accept_loop_can_be_started_without_a_tokio_runtime_entered() {
         let port = service.start(0).await.expect("bind");
         let receiver = service.receiver().expect("the listener is open");
         let pool = init_db_at(&std::env::temp_dir().join(format!(
-            "workspace-clone-noruntime-{}.db",
+            "stackhandoff-noruntime-{}.db",
             std::process::id()
         )))
         .await
@@ -1113,7 +1113,7 @@ fn the_accept_loop_can_be_started_without_a_tokio_runtime_entered() {
     });
 
     let _ = std::fs::remove_file(std::env::temp_dir().join(format!(
-        "workspace-clone-noruntime-{}.db",
+        "stackhandoff-noruntime-{}.db",
         std::process::id()
     )));
 }

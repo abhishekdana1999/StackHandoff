@@ -60,17 +60,25 @@ export function WelcomeScreen() {
             and the sidebar; repeating it at display size adds nothing and
             competes with the one thing a visitor needs to read here.
           */}
-          <p className="text-[15px] font-semibold text-foreground">Workspace Clone</p>
+          <p className="text-[15px] font-semibold text-foreground">StackHandoff</p>
           {/*
-            The lead paragraph, and the only text on any screen set above 13px.
-            A first-run screen has one job — say what the app is in a sentence —
-            and it is the one place where being slightly larger than the rest of
-            the app is the point rather than an accident.
+            The tagline. It sits directly under the name, in muted rather than
+            full-strength text, so the pair reads as one lockup: what this is,
+            then what it promises. Set at 15px to match the name — a tagline at
+            the app's dense 13px default disappears into the toolbar title above
+            it, and this is the one screen where being slightly larger than the
+            rest of the app is the point rather than an accident.
           */}
-          <p className="mt-2 text-[15px] leading-relaxed text-foreground max-w-2xl mx-auto">
+          <p className="mt-1 text-[15px] text-muted-foreground">Pick up right where you left off.</p>
+          {/*
+            The lead paragraph. It deliberately does not restate the tagline —
+            the tagline is the promise, this is the mechanism, and a first-run
+            screen that says the same thing twice reads as marketing copy.
+          */}
+          <p className="mt-3 text-[15px] leading-relaxed text-foreground max-w-2xl mx-auto">
             Move the <em>intent</em> of a work session between your own machines. Capture what a
-            project needs, check the other machine is ready, then pick up where you left off —
-            without carrying a single credential across.
+            project needs, check the other machine is ready, then rebuild it there — without
+            carrying a single credential across.
           </p>
           <p className="mt-3 text-sm text-muted-foreground">
             v{version.data ?? '…'}

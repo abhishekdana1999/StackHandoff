@@ -3,7 +3,7 @@ name = "workspace_clone_network"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Network layer for Workspace Clone"
+description = "Network layer for StackHandoff"
 
 [dependencies]
 workspace_clone_core = { path = "../core" }

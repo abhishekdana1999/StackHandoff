@@ -1,4 +1,4 @@
-//! Tauri commands for Workspace Clone
+//! Tauri commands for StackHandoff
 
 pub mod app;
 pub mod capture;
@@ -333,8 +333,8 @@ mod platform_tests {
 
     #[test]
     fn unix_prefers_the_hostname_variable() {
-        let name = resolve_hostname(Some("abhishek-mac"), Some("ignored"), None);
-        assert_eq!(name, "abhishek-mac");
+        let name = resolve_hostname(Some("example-mac"), Some("ignored"), None);
+        assert_eq!(name, "example-mac");
     }
 
     /// Guards the "unreachable in practice, so pick deliberately" case: if

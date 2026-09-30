@@ -2,7 +2,7 @@
 name = "workspace_clone_files"
 version = "0.1.0"
 edition = "2021"
-description = "Snapshot, archive, and safe extraction of project files for Workspace Clone"
+description = "Snapshot, archive, and safe extraction of project files for StackHandoff"
 
 [dependencies]
 workspace_clone_core = { path = "../core" }

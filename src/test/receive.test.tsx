@@ -476,7 +476,7 @@ describe('the arrival banner speaks the backend wire shape', () => {
         workspaceId: 'ws-9',
         workspaceName: 'Wire Shaped',
         senderDeviceId: 'peer-9',
-        senderDeviceName: 'BISWAJITA',
+        senderDeviceName: 'Office PC',
         sourceDeviceId: 'peer-9',
         accepted: true,
         refusalReason: null,
@@ -491,7 +491,7 @@ describe('the arrival banner speaks the backend wire shape', () => {
     renderAt();
 
     const card = await waitFor(() => banner('tr-wire'));
-    expect(within(card).getByText(/'Wire Shaped' arrived from BISWAJITA/)).toBeInTheDocument();
+    expect(within(card).getByText(/'Wire Shaped' arrived from Office PC/)).toBeInTheDocument();
 
     // The dismiss sends the camelCase id over invoke, which is what the backend
     // command parameter expects.

@@ -95,7 +95,7 @@ function onlineLaptop(scopes: PairedDevice['trust_scopes']): PairedDevice {
   // the pairing and network halves stay distinguishable in the test body. An
   // earlier version spread both into one object, which silently let a
   // `DiscoveredDevice` field overwrite a `PairedDevice` one.
-  return makePairedDevice({ id: LAPTOP_ID, name: 'BISWAJITA', trust_scopes: scopes });
+  return makePairedDevice({ id: LAPTOP_ID, name: 'Office PC', trust_scopes: scopes });
 }
 
 describe('the send screen can actually send', () => {
@@ -109,11 +109,11 @@ describe('the send screen can actually send', () => {
     // asking for a spelling the backend cannot produce.
     mockBackend({
       paired: [onlineLaptop(['receive-workspaces', 'send-workspaces'])],
-      discovered: [makeDiscoveredDevice({ device_id: LAPTOP_ID, name: 'BISWAJITA' })],
+      discovered: [makeDiscoveredDevice({ device_id: LAPTOP_ID, name: 'Office PC' })],
     });
     renderTransfer();
 
-    const destination = await screen.findByRole('button', { name: /BISWAJITA/ });
+    const destination = await screen.findByRole('button', { name: /Office PC/ });
     await waitFor(() => {
       expect(destination).toBeEnabled();
     });
@@ -129,11 +129,11 @@ describe('the send screen can actually send', () => {
     // two vocabularies have drifted apart again.
     mockBackend({
       paired: [onlineLaptop(['receive-workspaces', 'file-transfer'])],
-      discovered: [makeDiscoveredDevice({ device_id: LAPTOP_ID, name: 'BISWAJITA' })],
+      discovered: [makeDiscoveredDevice({ device_id: LAPTOP_ID, name: 'Office PC' })],
     });
     renderTransfer();
 
-    const destination = await screen.findByRole('button', { name: /BISWAJITA/ });
+    const destination = await screen.findByRole('button', { name: /Office PC/ });
     await waitFor(() => {
       expect(destination).toBeEnabled();
     });
@@ -155,11 +155,11 @@ describe('the send screen can actually send', () => {
     async (scope) => {
       mockBackend({
         paired: [onlineLaptop([scope])],
-        discovered: [makeDiscoveredDevice({ device_id: LAPTOP_ID, name: 'BISWAJITA' })],
+        discovered: [makeDiscoveredDevice({ device_id: LAPTOP_ID, name: 'Office PC' })],
       });
       renderTransfer();
 
-      const destination = await screen.findByRole('button', { name: /BISWAJITA/ });
+      const destination = await screen.findByRole('button', { name: /Office PC/ });
       await waitFor(() => {
         expect(destination).toBeDisabled();
       });
@@ -170,11 +170,11 @@ describe('the send screen can actually send', () => {
   it('still refuses a device that is on the network but was never paired', async () => {
     mockBackend({
       paired: [],
-      discovered: [makeDiscoveredDevice({ device_id: LAPTOP_ID, name: 'BISWAJITA' })],
+      discovered: [makeDiscoveredDevice({ device_id: LAPTOP_ID, name: 'Office PC' })],
     });
     renderTransfer();
 
-    const destination = await screen.findByRole('button', { name: /BISWAJITA/ });
+    const destination = await screen.findByRole('button', { name: /Office PC/ });
     await waitFor(() => {
       expect(destination).toBeDisabled();
     });
@@ -183,12 +183,12 @@ describe('the send screen can actually send', () => {
 
   it('still refuses a paired device that is not currently on the network', async () => {
     mockBackend({
-      paired: [makePairedDevice({ id: LAPTOP_ID, name: 'BISWAJITA', trust_scopes: ['receive-workspaces'] })],
+      paired: [makePairedDevice({ id: LAPTOP_ID, name: 'Office PC', trust_scopes: ['receive-workspaces'] })],
       discovered: [],
     });
     renderTransfer();
 
-    const destination = await screen.findByRole('button', { name: /BISWAJITA/ });
+    const destination = await screen.findByRole('button', { name: /Office PC/ });
     await waitFor(() => {
       expect(destination).toBeDisabled();
     });
@@ -198,11 +198,11 @@ describe('the send screen can actually send', () => {
   it('sends to the device the user picked', async () => {
     const invoke = mockBackend({
       paired: [onlineLaptop(['receive-workspaces'])],
-      discovered: [makeDiscoveredDevice({ device_id: LAPTOP_ID, name: 'BISWAJITA' })],
+      discovered: [makeDiscoveredDevice({ device_id: LAPTOP_ID, name: 'Office PC' })],
     });
     renderTransfer();
 
-    fireEvent.click(await screen.findByRole('button', { name: /BISWAJITA/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /Office PC/ }));
     fireEvent.click(await screen.findByRole('button', { name: /Send workspace/ }));
 
     await waitFor(() => {

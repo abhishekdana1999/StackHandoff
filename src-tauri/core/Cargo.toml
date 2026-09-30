@@ -3,7 +3,7 @@ name = "workspace_clone_core"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Core types and manifest model for Workspace Clone"
+description = "Core types and manifest model for StackHandoff"
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }

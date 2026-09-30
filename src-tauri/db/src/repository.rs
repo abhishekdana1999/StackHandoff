@@ -54,10 +54,10 @@ pub async fn init_db_at(db_path: &Path) -> Result<DbPool> {
 
 /// Get database file path
 fn get_db_path() -> Result<PathBuf> {
-    let proj_dirs = ProjectDirs::from("com", "workspaceclone", "WorkspaceClone")
+    let proj_dirs = ProjectDirs::from("com", "stackhandoff", "StackHandoff")
         .ok_or_else(|| DatabaseError::Connection("Could not find config directory".to_string()))?;
 
-    Ok(proj_dirs.data_dir().join("workspace-clone.db"))
+    Ok(proj_dirs.data_dir().join("stackhandoff.db"))
 }
 
 /// Run database migrations
@@ -1101,7 +1101,7 @@ mod tests {
         async fn open(name: &str) -> (Self, DbPool) {
             let mut path = std::env::temp_dir();
             path.push(format!(
-                "workspace-clone-{name}-{}-{}.db",
+                "stackhandoff-{name}-{}-{}.db",
                 std::process::id(),
                 Utc::now().timestamp_nanos_opt().unwrap_or_default()
             ));

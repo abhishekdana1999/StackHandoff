@@ -3,7 +3,7 @@ name = "app"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Workspace Clone - Cross-device work-session continuity"
+description = "StackHandoff - Cross-device work-session continuity"
 
 [build-dependencies]
 tauri-build = { version = "2.6.3", features = [] }

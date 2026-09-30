@@ -21,7 +21,7 @@ use crate::wire::PROTOCOL_VERSION;
 /// One constant for both halves on purpose: registering one type and parsing
 /// another's suffix is how a device ends up listed under a name the user never
 /// gave it.
-pub const SERVICE_TYPE: &str = "_workspace-clone._tcp.local.";
+pub const SERVICE_TYPE: &str = "_stackhandoff._tcp.local.";
 
 /// How long a manual pairing connect waits for the device to answer.
 const MANUAL_CONNECT_BUDGET: Duration = Duration::from_secs(5);
@@ -285,20 +285,20 @@ fn parse_discovered_device(info: &ServiceInfo) -> Option<DiscoveredDevice> {
 /// The display name a human chose, recovered from an mDNS full name.
 ///
 /// An mDNS full name is `{instance}.{service type}.{domain}`, so
-/// `BISWAJITA._workspace-clone._tcp.local.` is one device called `BISWAJITA`.
+/// `DESKTOP._stackhandoff._tcp.local.` is one device called `DESKTOP`.
 /// Only the instance label is a name; the rest is DNS plumbing, and a device
 /// list is read by people looking for their own laptop.
 ///
 /// This used to strip the trailing dot and the `.local` domain and stop there,
 /// which left the *service type* on the end -- so the laptop appeared as
-/// `BISWAJITA._workspace-clone._tcp`, which is the opposite of recognising it.
+/// `DESKTOP._stackhandoff._tcp`, which is the opposite of recognising it.
 /// The comment beside the old code said the goal was a name that helps a person
 /// recognise their own machine, so this is the bug the comment was warning about
 /// rather than the bug it described.
 ///
 /// The whole service suffix is removed rather than a `.local` substring,
 /// because an instance label may legitimately end in one: a Mac whose display
-/// name is `ABHISHEKs-MacBook-Air.local` must keep it. Stripping `.local` as a
+/// name is `example-mac.local` must keep it. Stripping `.local` as a
 /// suffix would quietly rename that device to something the user never chose.
 ///
 /// The suffix is matched case-insensitively because mDNS names are, and a peer
@@ -470,7 +470,7 @@ mod tests {
 
     fn service_info(props: std::collections::HashMap<String, String>, port: u16) -> ServiceInfo {
         ServiceInfo::new(
-            "_workspace-clone._tcp.local.",
+            "_stackhandoff._tcp.local.",
             "peer-1",
             "peer-1.local.",
             &[] as &[std::net::IpAddr],
@@ -634,7 +634,7 @@ mod tests {
 
         // The service type is the part this assertion used to miss, and it is
         // the part that was actually wrong: the device was listed as
-        // `peer-1._workspace-clone._tcp`, which is a service type wearing a
+        // `peer-1._stackhandoff._tcp`, which is a service type wearing a
         // device's name. Checking only for a trailing dot and `.local` left this
         // green while the name was unusable, so the exact expected value is
         // asserted rather than two properties that happen to hold.
@@ -646,16 +646,16 @@ mod tests {
 
     #[test]
     fn a_display_name_that_itself_ends_in_local_is_preserved() {
-        // A Mac named `ABHISHEKs-MacBook-Air.local` really does advertise that
+        // A Mac named `example-mac.local` really does advertise that
         // label. Stripping `.local` as a suffix would rename a device to
         // something the user never chose, which is the same class of bug as
         // leaving the service type on.
         assert_eq!(
             instance_display_name(
-                "ABHISHEKs-MacBook-Air.local._workspace-clone._tcp.local.",
+                "example-mac.local._stackhandoff._tcp.local.",
                 SERVICE_TYPE
             ),
-            "ABHISHEKs-MacBook-Air.local"
+            "example-mac.local"
         );
     }
 
@@ -665,8 +665,8 @@ mod tests {
         // any case, so a case-sensitive suffix match would leave that peer's
         // name carrying its own plumbing.
         assert_eq!(
-            instance_display_name("BISWAJITA._Workspace-Clone._TCP.local.", SERVICE_TYPE),
-            "BISWAJITA"
+            instance_display_name("DESKTOP._StackHandoff._TCP.local.", SERVICE_TYPE),
+            "DESKTOP"
         );
     }
 

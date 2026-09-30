@@ -1,4 +1,4 @@
-//! Core types and manifest model for Workspace Clone
+//! Core types and manifest model for StackHandoff
 
 pub mod crypto;
 pub mod device;

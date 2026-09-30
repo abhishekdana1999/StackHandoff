@@ -3,7 +3,7 @@ name = "workspace_clone_adapters"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Application adapters for Workspace Clone"
+description = "Application adapters for StackHandoff"
 
 [dependencies]
 workspace_clone_core = { path = "../core" }

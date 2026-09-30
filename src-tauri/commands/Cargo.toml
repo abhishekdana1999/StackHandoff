@@ -3,7 +3,7 @@ name = "workspace_clone_commands"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Tauri commands for Workspace Clone"
+description = "Tauri commands for StackHandoff"
 
 [dependencies]
 workspace_clone_core = { path = "../core" }

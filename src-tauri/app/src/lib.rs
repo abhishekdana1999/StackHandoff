@@ -1,4 +1,4 @@
-//! Workspace Clone - Main application crate
+//! StackHandoff - Main application crate
 
 pub fn run() {
     tauri::Builder::default()

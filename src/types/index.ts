@@ -168,7 +168,7 @@ export interface SafetyNumber {
  */
 export interface PairingInvitation {
   code: string;
-  /** A `workspace-clone://pair?...` URI, carrying both public keys. */
+  /** A `stackhandoff://pair?...` URI, carrying both public keys. */
   qr_data: string;
   expires_at: string;
   inviting_device_id: string;

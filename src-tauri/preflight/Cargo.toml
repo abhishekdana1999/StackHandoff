@@ -3,7 +3,7 @@ name = "workspace_clone_preflight"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Preflight engine for Workspace Clone"
+description = "Preflight engine for StackHandoff"
 
 [dependencies]
 workspace_clone_core = { path = "../core" }

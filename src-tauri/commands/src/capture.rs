@@ -687,7 +687,7 @@ pub fn manifest_path_for(workspace_id: &str) -> Result<PathBuf> {
 /// Public for the same reason as [`manifest_path_for`]: the receive side writes
 /// it and the restore side reads it, and both must agree on the name.
 pub fn files_path_for(workspace_id: &str) -> Result<PathBuf> {
-    let dir = directories::ProjectDirs::from("com", "workspaceclone", "WorkspaceClone")
+    let dir = directories::ProjectDirs::from("com", "stackhandoff", "StackHandoff")
         .ok_or_else(|| {
             DatabaseError::Connection("Could not find the application data directory".to_string())
         })?
@@ -714,7 +714,7 @@ pub fn files_path_for(workspace_id: &str) -> Result<PathBuf> {
 
 /// Where a sealed manifest lives on this device.
 fn manifest_path(workspace_id: &str) -> Result<PathBuf> {
-    let dir = directories::ProjectDirs::from("com", "workspaceclone", "WorkspaceClone")
+    let dir = directories::ProjectDirs::from("com", "stackhandoff", "StackHandoff")
         .ok_or_else(|| {
             DatabaseError::Connection("Could not find the application data directory".to_string())
         })?

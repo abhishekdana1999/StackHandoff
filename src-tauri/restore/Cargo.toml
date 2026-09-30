@@ -3,7 +3,7 @@ name = "workspace_clone_restore"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Restore planning and execution for Workspace Clone"
+description = "Restore planning and execution for StackHandoff"
 
 [dependencies]
 workspace_clone_core = { path = "../core" }

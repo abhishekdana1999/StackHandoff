@@ -1,4 +1,4 @@
-# Workspace Clone — Developer Guide
+# StackHandoff — Developer Guide
 
 **For someone new to this codebase, with one Windows laptop and one Mac laptop.**
 
@@ -47,7 +47,7 @@ in your editor, a few tools installed, some environment variables set, a list of
 internal URLs to remember. Then you travel, and you want that setup on the other
 machine.
 
-**Workspace Clone captures that setup on one machine and restores it on another.**
+**StackHandoff captures that setup on one machine and restores it on another.**
 
 It does *not* copy your files. It captures a description of your working
 environment — a **manifest** — and rebuilds that environment on the other
@@ -125,7 +125,7 @@ npm run tauri dev
 ```
 
 The first run takes several minutes because it compiles ~10 Rust crates from
-scratch. When it finishes, a **Workspace Clone** window opens.
+scratch. When it finishes, a **StackHandoff** window opens.
 
 > **On Apple silicon (M1/M2/M3/M4):** nothing special to do. The project no
 > longer pins a build target, so cargo builds for whatever your host is. An old
@@ -209,7 +209,7 @@ The first time each machine launches, the OS asks whether to accept incoming
 network connections. **Say yes.**
 
 - **macOS:** System Settings → Network → Firewall → Options… → allow
-  `Workspace Clone` for incoming connections.
+  `StackHandoff` for incoming connections.
 - **Windows:** when Windows Defender Firewall prompts, tick **Private networks**
   and untick **Public networks**, then Allow access. If you are on a network
   Windows considers public, tick that too.
@@ -298,7 +298,7 @@ Workarounds, in order of preference:
 3. **Pair by key instead.** This always works and needs no network at all:
 
    - On the machine that will *invite*, click **Show my pairing code instead**
-     in the pairing dialog. It shows a `workspace-clone://pair?...` link.
+     in the pairing dialog. It shows a `stackhandoff://pair?...` link.
    - Copy it and send it to the other machine however you like — email, Slack,
      a text message.
    - On the other machine, click **Pair a device**, paste it into the
@@ -508,7 +508,7 @@ directory is not the Windows laptop's home directory. This screen asks you to
 name a real folder on **this** machine for each bucket.
 
 > A bucket holding **one** project uses the folder exactly as you write it —
-> typing `E:/workspace-clone` restores the code *into* `E:/workspace-clone`, not
+> typing `E:/stackhandoff` restores the code *into* `E:/stackhandoff`, not
 > into a subfolder under it. A bucket holding **several** projects nests each in
 > its own folder beneath yours, so they cannot overwrite one another. The step
 > table always shows the exact final path of every project before anything runs.
@@ -669,12 +669,12 @@ On **each** machine, under the app's own folder:
 
 | Platform | Path                                                                 |
 | -------- | -------------------------------------------------------------------- |
-| macOS    | `~/Library/Application Support/com.workspaceclone.WorkspaceClone/` |
-| Windows  | `%APPDATA%\com.workspaceclone.WorkspaceClone\`                     |
+| macOS    | `~/Library/Application Support/com.stackhandoff.StackHandoff/` |
+| Windows  | `%APPDATA%\com.stackhandoff.StackHandoff\`                     |
 
 Inside:
 
-- **`workspace-clone.db`** — SQLite. Workspaces, devices, transfer history,
+- **`stackhandoff.db`** — SQLite. Workspaces, devices, transfer history,
   restore runs, settings.
 - **`manifests/`** — one file per workspace: the **encrypted** manifest.
 

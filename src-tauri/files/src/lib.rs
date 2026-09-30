@@ -1,4 +1,4 @@
-//! Project file transfer for Workspace Clone.
+//! Project file transfer for StackHandoff.
 //!
 //! A workspace transfer has always carried the *manifest* -- descriptions,
 //! requirements, policy -- but never the bytes of the projects it describes.

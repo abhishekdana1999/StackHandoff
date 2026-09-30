@@ -1,4 +1,4 @@
-//! Workspace Clone - Tauri application library
+//! StackHandoff - Tauri application library
 
 use tauri::Manager;
 use workspace_clone_commands::init;

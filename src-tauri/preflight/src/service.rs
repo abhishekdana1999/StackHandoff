@@ -123,7 +123,7 @@ fn check_one(requirement: &Requirement) -> CheckResult {
             status: CheckStatus::NotApplicable,
             evidence: format!(
                 "{host} is not a local address, so this check does not apply. \
-                 Workspace Clone checks local services only and never contacts remote hosts."
+                 StackHandoff checks local services only and never contacts remote hosts."
             ),
             freshness: now,
             action: None,

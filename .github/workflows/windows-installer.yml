@@ -66,7 +66,7 @@ jobs:
       - name: Upload the installers
         uses: actions/upload-artifact@v4
         with:
-          name: workspace-clone-windows
+          name: stackhandoff-windows
           if-no-files-found: error
           path: |
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsi/*.exe

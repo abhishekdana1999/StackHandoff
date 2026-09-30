@@ -1,6 +1,6 @@
 //! Browser adapter.
 //!
-//! Workspace Clone never reads browser history, cookies or session storage.
+//! StackHandoff never reads browser history, cookies or session storage.
 //! URLs enter a manifest only because the user typed them into the capture
 //! screen, and this adapter is the only place that list is turned into a
 //! manifest entry.

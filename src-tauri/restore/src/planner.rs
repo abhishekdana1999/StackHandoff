@@ -613,8 +613,8 @@ fn portable_context_for(adapter_id: &str, manifest: &WorkspaceManifest) -> Porta
 /// lands in. The project's manifest name is not appended, because that name
 /// comes from the source machine (the last folder of the source path) and
 /// means nothing on a different layout. This is what BUG-027 got wrong:
-/// restoring the `openshorts` workspace to `E:/workspace-clone` produced
-/// `E:/workspace-clone/openshorts` -- a folder the user never named, which the
+/// restoring the `openshorts` workspace to `E:/stackhandoff` produced
+/// `E:/stackhandoff/openshorts` -- a folder the user never named, which the
 /// restore then told them to go and create.
 ///
 /// A bucket holding several projects nests each one in a folder of its own
@@ -910,8 +910,8 @@ mod tests {
     #[test]
     fn a_single_project_lands_exactly_in_the_folder_typed() {
         // The live bug (BUG-027): restoring the `openshorts` workspace from
-        // this machine to `E:/workspace-clone` on another produced
-        // `E:/workspace-clone/openshorts` -- the manifest's project name, which
+        // this machine to `E:/stackhandoff` on another produced
+        // `E:/stackhandoff/openshorts` -- the manifest's project name, which
         // is the source machine's folder name, appended under a root the user
         // deliberately chose and never asked to be a parent folder.
         let manifest = manifest_with(vec![project("p1", "openshorts", "code")], vec![]);

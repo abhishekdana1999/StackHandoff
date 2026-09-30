@@ -8,7 +8,7 @@ export function LoadingScreen() {
           <Monitor className="w-8 h-8 text-primary" />
         </div>
         <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-bold text-foreground">Workspace Clone</h1>
+          <h1 className="text-2xl font-bold text-foreground">StackHandoff</h1>
           <p className="text-muted-foreground">Initializing...</p>
         </div>
         <Loader2 className="w-8 h-8 text-primary animate-spin" />

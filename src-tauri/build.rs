@@ -8,8 +8,8 @@ fn main() {
     // Set the database URL for SQLx compile-time checking
     let db_path = dirs::data_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join("workspace-clone")
-        .join("workspace-clone.db");
+        .join("stackhandoff")
+        .join("stackhandoff.db");
     
     let db_url = format!("sqlite://{}", db_path.display());
     env::set_var("DATABASE_URL", &db_url);

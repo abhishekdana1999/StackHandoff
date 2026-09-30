@@ -1,4 +1,4 @@
-//! Key management for Workspace Clone.
+//! Key management for StackHandoff.
 //!
 //! Device private keys live in the OS credential store (Keychain on macOS,
 //! Credential Manager on Windows) and are never written to the database or to
@@ -217,7 +217,7 @@ impl KeyStorage {
 
 /// Credential-store service name. Namespaced so the app never collides with
 /// another application's entries.
-const KEYRING_SERVICE: &str = "workspace-clone";
+const KEYRING_SERVICE: &str = "stackhandoff";
 
 /// The local device's secret material, as held in the OS credential store.
 #[derive(Debug, Clone, Serialize, Deserialize)]

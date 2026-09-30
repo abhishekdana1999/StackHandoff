@@ -753,7 +753,7 @@ mod tests {
     impl Fixture {
         async fn new(name: &str) -> Self {
             let path = std::env::temp_dir().join(format!(
-                "workspace-clone-recv-{name}-{}-{}.db",
+                "stackhandoff-recv-{name}-{}-{}.db",
                 std::process::id(),
                 chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
             ));

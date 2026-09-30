@@ -183,7 +183,7 @@ pub struct IdentityRequirement {
 
 /// Environment variable requirements
 ///
-/// `presence_only` is the whole contract: Workspace Clone learns which *names*
+/// `presence_only` is the whole contract: StackHandoff learns which *names*
 /// matter and nothing about their values. `values_included` is retained only so
 /// a hostile manifest can be detected and rejected rather than silently obeyed
 /// (see `Requirements::validate`).

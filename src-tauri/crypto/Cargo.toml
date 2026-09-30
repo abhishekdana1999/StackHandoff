@@ -3,7 +3,7 @@ name = "workspace_clone_crypto"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Cryptographic operations for Workspace Clone"
+description = "Cryptographic operations for StackHandoff"
 
 [dependencies]
 workspace_clone_core = { path = "../core" }

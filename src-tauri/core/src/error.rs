@@ -1,4 +1,4 @@
-//! Error types for Workspace Clone
+//! Error types for StackHandoff
 
 use thiserror::Error;
 

@@ -98,7 +98,7 @@ function fullBackend() {
     get_safety_number: () => ({ number: '12345 67890', note: 'compare' }),
     create_pairing_invitation: () => ({
       code: 'WC-1234-5678-9ABC',
-      qr_data: 'workspace-clone://pair?code=WC-1234-5678-9ABC',
+      qr_data: 'stackhandoff://pair?code=WC-1234-5678-9ABC',
       expires_at: '2026-01-01T00:05:00Z',
       inviting_device_id: 'FINGERPRINT-1',
       inviting_device_name: 'This device',

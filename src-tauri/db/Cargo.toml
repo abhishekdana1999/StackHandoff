@@ -3,7 +3,7 @@ name = "workspace_clone_db"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-description = "Database layer for Workspace Clone"
+description = "Database layer for StackHandoff"
 
 [dependencies]
 workspace_clone_core = { path = "../core" }

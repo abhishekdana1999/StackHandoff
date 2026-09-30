@@ -1,8 +1,8 @@
-# Workspace Clone
+# StackHandoff
 
-**Pick up right where you left off — on the other laptop.**
+**Pick up right where you left off.**
 
-Workspace Clone is a peer-to-peer desktop app for cross-device work-session
+StackHandoff is a peer-to-peer desktop app for cross-device work-session
 continuity. Start work on one machine — project folders open in your editor,
 tools installed, environment variables set, accounts signed in — and when you
 travel, it captures that setup and rebuilds it on the other machine.

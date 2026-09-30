@@ -388,7 +388,7 @@ export function DevicesScreen() {
                 <Label htmlFor="remote-key">Or paste the other machine&apos;s key</Label>
                 <Input
                   id="remote-key"
-                  placeholder="Paste a workspace-clone://pair?... link, or the bare base64 key"
+                  placeholder="Paste a stackhandoff://pair?... link, or the bare base64 key"
                   value={remoteKey}
                   onChange={(e) => setRemoteKey(e.target.value)}
                   className="font-mono text-xs"

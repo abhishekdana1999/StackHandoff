@@ -1,10 +1,10 @@
-# Workspace Clone: Agent Handoff
+# StackHandoff: Agent Handoff
 
 Updated: 2026-09-27
 
 ## Project
 
-Workspace Clone is a Tauri 2 desktop app for cross-device work-session continuity. The frontend is React 18 + TypeScript + Vite at the repository root. The Rust Cargo workspace is under `src-tauri/`, with crates for core types, cryptography, database, networking, adapters, preflight, restore, Tauri commands, and the app binary.
+StackHandoff is a Tauri 2 desktop app for cross-device work-session continuity. The frontend is React 18 + TypeScript + Vite at the repository root. The Rust Cargo workspace is under `src-tauri/`, with crates for core types, cryptography, database, networking, adapters, preflight, restore, Tauri commands, and the app binary.
 
 The repository root is `/Users/abhishekdana/Documents/openshorts`. The Rust workspace manifest is `src-tauri/Cargo.toml`.
 

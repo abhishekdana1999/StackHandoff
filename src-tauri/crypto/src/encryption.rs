@@ -29,12 +29,12 @@ pub fn open_json<T: serde::de::DeserializeOwned>(key: &EncryptionKey, sealed: &s
 
 /// Associated data bound to every sealed manifest, so a ciphertext cannot be
 /// replayed into a different context.
-const SEALED_MANIFEST_AAD: &[u8] = b"workspace-clone-manifest/v1";
+const SEALED_MANIFEST_AAD: &[u8] = b"stackhandoff-manifest/v1";
 
 /// Associated data bound to every sealed file archive, distinct from the
 /// manifest AAD so a ciphertext saved for one purpose cannot be swapped into
 /// the other.
-const SEALED_FILES_AAD: &[u8] = b"workspace-clone-files/v1";
+const SEALED_FILES_AAD: &[u8] = b"stackhandoff-files/v1";
 
 /// Encrypt arbitrary bytes (a file archive) and return the storable sealed
 /// blob, mirroring [`seal_json`] but for data with no JSON form.

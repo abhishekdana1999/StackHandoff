@@ -80,7 +80,7 @@ const MANIFEST: WorkspaceManifest = {
   schema_version: 1,
   workspace: {
     id: 'ws-1',
-    name: 'Workspace Clone - Win to Mac Transfer',
+    name: 'StackHandoff - Win to Mac Transfer',
     captured_at: NOW,
     source_device: { id: 'mac-1', os: 'macos', os_version: 'macOS 15.2' },
     portability: 'cross_platform',
@@ -92,7 +92,7 @@ const MANIFEST: WorkspaceManifest = {
       source_path_hint: '~/Documents/openshorts',
       destination_location_id: 'code',
       git: {
-        remote_hint: 'github.com/developer/workspace-clone',
+        remote_hint: 'github.com/developer/stackhandoff',
         branch: 'main',
         commit: 'a1b2c3d',
         dirty_worktree: true,
@@ -239,7 +239,7 @@ const PLAN_SUMMARY: PlanSummary = {
 
 const WORKSPACE: WorkspaceRecord = {
   id: 'ws-1',
-  name: 'Workspace Clone - Win to Mac Transfer',
+  name: 'StackHandoff - Win to Mac Transfer',
   schema_version: 1,
   captured_at: NOW,
   source_device_id: 'mac-1',
@@ -320,7 +320,7 @@ const PROJECT_SCAN: ProjectScan = {
         branch: 'main',
         commit: 'a1b2c3d',
         dirty: true,
-        remoteHint: 'github.com/developer/workspace-clone',
+        remoteHint: 'github.com/developer/stackhandoff',
       },
     },
     {
@@ -396,7 +396,7 @@ const handlers: Record<string, Handler> = {
   },
   create_pairing_invitation: () => ({
     code: 'WC-1234-5678-9ABC',
-    qr_data: 'workspace-clone://pair?code=WC-1234-5678-9ABC',
+    qr_data: 'stackhandoff://pair?code=WC-1234-5678-9ABC',
     expires_at: '2026-09-30T09:17:00.000Z',
     inviting_device_id: 'mac-1',
     inviting_device_name: SOURCE_DEVICE_NAME,
@@ -404,9 +404,9 @@ const handlers: Record<string, Handler> = {
   }),
   get_safety_number: () => ({ number: '12345 67890', note: 'compare on both screens' }),
   verify_pairing: () => PAIRED,
-  list_settings: () => [['project_roots', '["/Users/abhishek/Documents"]']],
+  list_settings: () => [['project_roots', '["/Users/developer/Documents"]']],
   get_setting: (args) => {
-    if (args.key === 'project_roots') return '["/Users/abhishek/Documents"]';
+    if (args.key === 'project_roots') return '["/Users/developer/Documents"]';
     return null;
   },
 };
@@ -463,7 +463,7 @@ function installMock(): void {
     metadata: {
       currentWindow: { label: 'main' },
       currentMonitor: null,
-      app: { name: 'Workspace Clone' },
+      app: { name: 'StackHandoff' },
     },
   };
 

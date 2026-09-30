@@ -1,4 +1,4 @@
-//! Cryptographic primitives for Workspace Clone - Minimal Implementation
+//! Cryptographic primitives for StackHandoff - Minimal Implementation
 
 use crate::error::{CryptoError, Result, WorkspaceError};
 use aes_gcm::aead::Aead;
@@ -133,7 +133,7 @@ pub fn fingerprint_from_connection_key_b64(key_b64: &str) -> Result<String> {
     let mut hasher = Sha256::new();
     // Domain-separated from the Ed25519 fingerprint above, so the same 32 bytes
     // can never produce the same displayed value through the two functions.
-    hasher.update(b"workspace-clone/connection-fingerprint/v1");
+    hasher.update(b"stackhandoff/connection-fingerprint/v1");
     hasher.update(&bytes);
     Ok(BASE64.encode(&hasher.finalize()[..16]))
 }
@@ -299,7 +299,7 @@ pub fn encrypt_json<T: serde::Serialize>(key_bytes: &[u8; 32], value: &T) -> Res
     let key = EncryptionKey::new(*key_bytes);
     let json = serde_json::to_vec(value)
         .map_err(|e| WorkspaceError::Crypto(CryptoError::Encryption(e.to_string())))?;
-    let payload = encrypt(&key, &json, b"workspace-clone-manifest")?;
+    let payload = encrypt(&key, &json, b"stackhandoff-manifest")?;
     Ok(serde_json::to_string(&payload)
         .map_err(|e| WorkspaceError::Crypto(CryptoError::Encryption(e.to_string())))?)
 }
@@ -312,7 +312,7 @@ pub fn decrypt_json<T: serde::de::DeserializeOwned>(
     let key = EncryptionKey::new(*key_bytes);
     let payload: EncryptedPayload = serde_json::from_str(encrypted)
         .map_err(|e| WorkspaceError::Crypto(CryptoError::Decryption(e.to_string())))?;
-    let plaintext = decrypt(&key, &payload, b"workspace-clone-manifest")?;
+    let plaintext = decrypt(&key, &payload, b"stackhandoff-manifest")?;
     serde_json::from_slice(&plaintext)
         .map_err(|e| WorkspaceError::Crypto(CryptoError::Decryption(e.to_string())))
 }
@@ -385,7 +385,7 @@ mod encryption_tests {
     #[test]
     fn aes_gcm_round_trips() {
         let key = EncryptionKey::new([42u8; 32]);
-        let plaintext = b"Hello, Workspace Clone!";
+        let plaintext = b"Hello, StackHandoff!";
         let aad = b"associated data";
 
         let encrypted = encrypt(&key, plaintext, aad).unwrap();

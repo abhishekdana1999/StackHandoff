@@ -1,4 +1,4 @@
--- Initial schema for Workspace Clone
+-- Initial schema for StackHandoff
 
 CREATE TABLE IF NOT EXISTS devices (
     id TEXT PRIMARY KEY,

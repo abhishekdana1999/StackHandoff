@@ -92,7 +92,7 @@ function StatusBar() {
         {paired ? `${paired.length} paired` : '— paired'}
       </span>
       <span className="flex-1" />
-      <span className="text-fg-faint">Workspace Clone</span>
+      <span className="text-fg-faint">StackHandoff</span>
       <span className="text-fg-faint">·</span>
       <span data-testid="status-version">{version ? `v${version}` : '—'}</span>
     </div>
@@ -134,7 +134,7 @@ export function Layout({ children }: { children?: ReactNode }) {
             <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-primary text-primary-foreground">
               <Monitor className="h-3.5 w-3.5" aria-hidden="true" />
             </div>
-            {!collapsed && <span className="truncate text-[13px] font-semibold">Workspace Clone</span>}
+            {!collapsed && <span className="truncate text-[13px] font-semibold">StackHandoff</span>}
           </div>
 
           <nav className="flex-1 space-y-0.5 overflow-y-auto p-1.5 scrollbar-thin">
