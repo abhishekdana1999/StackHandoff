@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #0f0f12;
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0f0f12;
+        color: #f4f4f5;
+        font-family: -apple-system, ui-sans-serif, system-ui, "Helvetica Neue", sans-serif;
+      }
+      .clip {
+        position: absolute;
+        inset: 0;
+      }
+      .glow {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+          62% 52% at 50% 40%,
+          rgba(79, 70, 229, 0.17),
+          rgba(79, 70, 229, 0.05) 55%,
+          rgba(79, 70, 229, 0) 78%
+        );
+      }
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      @font-face {
+        font-family: "sfmono-regular";
+        src: local("SF Mono");
+      }
+
+      /* ---------- shared text ---------- */
+      .cap {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        text-align: center;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+      }
+      .cap-lg {
+        top: 148px;
+        font-size: 62px;
+      }
+      .cap-sub {
+        top: 238px;
+        font-size: 34px;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+        color: #a1a1aa;
+      }
+
+      /* ---------- scene 1: the promise ---------- */
+      .hook {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        text-align: center;
+        font-size: 96px;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        color: #f4f4f5;
+      }
+      #s1-line1 {
+        top: 196px;
+      }
+      #s1-line2 {
+        top: 322px;
+        color: #c7d2fe;
+      }
+      .laptop {
+        position: absolute;
+        width: 520px;
+        height: 336px;
+        border-radius: 28px;
+        border: 2px solid #3f3f46;
+        background: #1a1a1f;
+        box-shadow: 0 30px 70px rgba(0, 0, 0, 0.45);
+      }
+      .laptop .screen {
+        position: absolute;
+        left: 16px;
+        top: 16px;
+        right: 16px;
+        bottom: 68px;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #16161a;
+      }
+      .laptop .base {
+        position: absolute;
+        left: 130px;
+        right: 130px;
+        bottom: 16px;
+        height: 24px;
+        border-radius: 12px;
+        background: #27272a;
+      }
+      #laptop-left {
+        left: 320px;
+        top: 480px;
+      }
+      #laptop-right {
+        left: 1080px;
+        top: 480px;
+      }
+      .desk {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, #1e1f26 0%, #141519 100%);
+        padding: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .desk .mini {
+        height: 74px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+      }
+      .desk .mini.tall {
+        height: 108px;
+      }
+      .off {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #s1-power {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: 3px solid #34d399;
+        opacity: 0;
+      }
+      #flight {
+        position: absolute;
+        left: 560px;
+        top: 700px;
+        width: 690px;
+        height: 3px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.13);
+      }
+      #packet,
+      #packet3 {
+        position: absolute;
+        width: 96px;
+        height: 34px;
+        border-radius: 17px;
+        background: linear-gradient(135deg, #818cf8, #4f46e5);
+        box-shadow: 0 10px 26px rgba(79, 70, 229, 0.5);
+        opacity: 0;
+      }
+      #packet .key,
+      #packet3 .key {
+        position: absolute;
+        left: 40px;
+        top: 9px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: #eef2ff;
+      }
+      #packet {
+        left: 544px;
+        top: 684px;
+      }
+      #packet3 {
+        left: 544px;
+        top: 452px;
+      }
+
+      /* ---------- scene 2/4: the app window ---------- */
+      .win {
+        position: absolute;
+        left: 550px;
+        top: 318px;
+        width: 820px;
+        height: 604px;
+        border-radius: 16px;
+        background: #ffffff;
+        border: 1px solid #e4e4e7;
+        box-shadow: 0 40px 110px rgba(0, 0, 0, 0.55);
+        color: #18181b;
+      }
+      .titlebar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        right: 0;
+        height: 56px;
+        border-bottom: 1px solid #ececee;
+        display: flex;
+        align-items: center;
+        padding: 0 18px;
+        gap: 8px;
+      }
+      .titlebar .dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+      }
+      .titlebar .dot.r { background: #ff5f57; }
+      .titlebar .dot.y { background: #febc2e; }
+      .titlebar .dot.g { background: #28c840; }
+      .titlebar .doc-title {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        text-align: center;
+        font-size: 14px;
+        font-weight: 600;
+        color: #3f3f46;
+        pointer-events: none;
+      }
+      .sidebar {
+        position: absolute;
+        left: 0;
+        top: 56px;
+        bottom: 0;
+        width: 178px;
+        border-right: 1px solid #ececee;
+        background: #f6f6f8;
+        padding: 16px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .nav {
+        height: 42px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 12px;
+        font-size: 13px;
+        font-weight: 550;
+        color: #52525b;
+      }
+      .nav .ico {
+        width: 12px;
+        height: 12px;
+        border-radius: 4px;
+        background: #d4d4d8;
+      }
+      .nav.active {
+        background: #eef2ff;
+        color: #4338ca;
+      }
+      .nav.active .ico {
+        background: #6366f1;
+      }
+      .main {
+        position: absolute;
+        left: 178px;
+        top: 56px;
+        right: 0;
+        bottom: 0;
+        padding: 26px 26px 20px;
+        overflow: hidden;
+      }
+      .main h3 {
+        font-size: 21px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+        margin-bottom: 18px;
+      }
+      .row {
+        position: relative;
+        height: 74px;
+        margin-bottom: 13px;
+        border: 1px solid #e4e4e7;
+        border-radius: 12px;
+        background: #ffffff;
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        gap: 12px;
+      }
+      .row .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #6366f1;
+        flex: 0 0 auto;
+      }
+      .row .name {
+        font-size: 15px;
+        font-weight: 600;
+        color: #18181b;
+        white-space: nowrap;
+      }
+      .row .spacer {
+        flex: 1;
+      }
+      .chip {
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+      }
+      .chip.indigo {
+        background: #eef2ff;
+        border-color: #c7d2fe;
+        color: #4338ca;
+      }
+      .chip.grey {
+        background: #f4f4f5;
+        border-color: #e4e4e7;
+        color: #52525b;
+      }
+      .chip.green {
+        background: #f0fdf4;
+        border-color: #bbf7d0;
+        color: #15803d;
+      }
+      .chip.pending {
+        background: #f4f4f5;
+        border-color: #e4e4e7;
+        color: #71717a;
+      }
+
+      /* ---------- scene 3: transfer ---------- */
+      .win-sm {
+        position: absolute;
+        width: 600px;
+        height: 330px;
+        border-radius: 16px;
+        border: 1px solid #e4e4e7;
+        box-shadow: 0 40px 110px rgba(0, 0, 0, 0.5);
+        color: #18181b;
+      }
+      #s3-send {
+        left: 340px;
+        top: 560px;
+        background: #ffffff;
+      }
+      #s3-ghost {
+        left: 980px;
+        top: 560px;
+      }
+      #ghost-off {
+        position: absolute;
+        inset: 0;
+        border-radius: 16px;
+        border: 2px solid #3f3f46;
+        background: #17171c;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        color: #a1a1aa;
+        font-size: 16px;
+      }
+      #ghost-off .pulse {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: 3px solid #52525b;
+        border-top-color: #818cf8;
+      }
+      #ghost-on {
+        position: absolute;
+        inset: 0;
+        border-radius: 16px;
+        border: 1px solid #e4e4e7;
+        background: #ffffff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        opacity: 0;
+      }
+      #s3-check {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: #f0fdf4;
+        border: 2px solid #86efac;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+        font-weight: 700;
+        color: #15803d;
+      }
+      #ghost-on .recv {
+        font-size: 22px;
+        font-weight: 650;
+        color: #15803d;
+      }
+      #ghost-on .recv-sub {
+        font-size: 15px;
+        color: #52525b;
+      }
+      .win-sm .sm-body {
+        position: absolute;
+        left: 0;
+        top: 56px;
+        right: 0;
+        bottom: 0;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .send-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .send-row .lbl {
+        font-size: 14px;
+        color: #52525b;
+      }
+      .send-row .who {
+        font-size: 15px;
+        font-weight: 650;
+        color: #18181b;
+      }
+      .btn-send {
+        margin-top: 6px;
+        height: 48px;
+        border-radius: 12px;
+        background: #4f46e5;
+        color: #ffffff;
+        font-size: 15px;
+        font-weight: 650;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #4338ca;
+        box-shadow: 0 8px 20px rgba(79, 70, 229, 0.35);
+      }
+      #s3-flight {
+        position: absolute;
+        left: 585px;
+        top: 470px;
+        width: 750px;
+        height: 3px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.13);
+      }
+
+      /* ---------- scene 4 payoff bar ---------- */
+      #s4-git {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 936px;
+        height: 84px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(23, 23, 28, 0.92);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        font-size: 30px;
+        font-weight: 550;
+      }
+      #s4-git .mono-pre {
+        color: #c7d2fe;
+      }
+      #s4-git .mono-body {
+        color: #f4f4f5;
+      }
+
+      /* ---------- scene 5: outro ---------- */
+      #s5-group {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        top: 0;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 26px;
+      }
+      #s5-mark {
+        width: 132px;
+        height: 132px;
+        border-radius: 30px;
+        background: linear-gradient(135deg, #6366f1, #4f46e5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 54px;
+        font-weight: 750;
+        color: #ffffff;
+        box-shadow: 0 24px 60px rgba(79, 70, 229, 0.45);
+      }
+      #s5-name {
+        font-size: 96px;
+        font-weight: 750;
+        letter-spacing: -0.03em;
+      }
+      #s5-tag {
+        font-size: 32px;
+        font-weight: 500;
+        color: #a1a1aa;
+        letter-spacing: -0.01em;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-mn5r" id="root" data-composition-id="main" data-start="0" data-duration="22.3" data-width="1920" data-height="1080">
+      <div data-hf-id="hf-2s7n" class="glow"></div>
+
+      <!-- ============ SCENE 1 — the promise (0.0–3.0) ============ -->
+      <section data-hf-id="hf-26x5" id="scene-1" class="clip" data-start="0" data-duration="3">
+        <h1 data-hf-id="hf-wc3c" id="s1-line1" class="hook">Close your laptop.</h1>
+        <h1 data-hf-id="hf-mnm7" id="s1-line2" class="hook">Open the other one.</h1>
+
+        <div data-hf-id="hf-x9ck" id="laptop-left" class="laptop">
+          <div data-hf-id="hf-cdmk" class="screen">
+            <div data-hf-id="hf-3tbf" class="desk">
+              <div data-hf-id="hf-x34l" class="mini"></div>
+              <div data-hf-id="hf-hs4i" class="mini tall"></div>
+              <div data-hf-id="hf-mudl" class="mini"></div>
+            </div>
+          </div>
+          <div data-hf-id="hf-9327" class="base"></div>
+        </div>
+
+        <div data-hf-id="hf-5mtn" id="laptop-right" class="laptop">
+          <div data-hf-id="hf-0hv8" class="screen">
+            <div data-hf-id="hf-nopj" class="off"><div data-hf-id="hf-d9rp" id="s1-power"></div></div>
+          </div>
+          <div data-hf-id="hf-ykzj" class="base"></div>
+        </div>
+
+        <div data-hf-id="hf-r4kf" id="flight"></div>
+        <div data-hf-id="hf-f9vt" id="packet"><span data-hf-id="hf-at8q" class="key"></span></div>
+      </section>
+
+      <!-- ============ SCENE 2 — capture (3.0–8.2) ============ -->
+      <section data-hf-id="hf-z4hl" id="scene-2" class="clip" data-start="3" data-duration="5.2">
+        <div data-hf-id="hf-in90" id="s2-cap" class="cap cap-lg">It captures your setup — as a manifest.</div>
+
+        <div data-hf-id="hf-5goe" id="s2-win" class="win">
+          <div data-hf-id="hf-t179" class="titlebar">
+            <div data-hf-id="hf-rppj" class="dot r"></div>
+            <div data-hf-id="hf-pemc" class="dot y"></div>
+            <div data-hf-id="hf-hiea" class="dot g"></div>
+            <div data-hf-id="hf-2lx5" class="doc-title">Workspace Clone</div>
+          </div>
+          <div data-hf-id="hf-96rw" class="sidebar">
+            <div data-hf-id="hf-u16r" class="nav active"><span data-hf-id="hf-gm9w" class="ico"></span>Capture</div>
+            <div data-hf-id="hf-uifo" class="nav"><span data-hf-id="hf-qj98" class="ico"></span>Transfer</div>
+            <div data-hf-id="hf-0acl" class="nav"><span data-hf-id="hf-pcc5" class="ico"></span>Workspaces</div>
+            <div data-hf-id="hf-apya" class="nav"><span data-hf-id="hf-pqn6" class="ico"></span>Devices</div>
+            <div data-hf-id="hf-l1du" class="nav"><span data-hf-id="hf-rq6b" class="ico"></span>Settings</div>
+          </div>
+          <div data-hf-id="hf-k15r" class="main">
+            <h3 data-hf-id="hf-1sdc">Capture a workspace</h3>
+            <div data-hf-id="hf-thy4" class="row"><div data-hf-id="hf-dmti" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-9gry" class="dot"></span><span data-hf-id="hf-5zp3" class="name">openshorts</span><span data-hf-id="hf-as4p" class="spacer"></span><span data-hf-id="hf-btu5" class="chip grey">main</span></div></div>
+            <div data-hf-id="hf-lt04" class="row"><div data-hf-id="hf-fmbu" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-zcc2" class="dot"></span><span data-hf-id="hf-dlz3" class="name">site</span><span data-hf-id="hf-2gv1" class="spacer"></span><span data-hf-id="hf-0b1d" class="chip indigo">feat/theme</span></div></div>
+            <div data-hf-id="hf-km31" class="row"><div data-hf-id="hf-g0mv" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-zqn3" class="dot"></span><span data-hf-id="hf-f50f" class="name">node · git · gh</span><span data-hf-id="hf-3ns4" class="spacer"></span><span data-hf-id="hf-kvpd" class="chip green">ready</span></div></div>
+            <div data-hf-id="hf-l0e2" class="row"><div data-hf-id="hf-gexw" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-04y4" class="dot"></span><span data-hf-id="hf-l5b6" class="name mono" style="font-size:14px;">SUPABASE_URL</span><span data-hf-id="hf-39h3" class="spacer"></span><span data-hf-id="hf-gqi7" class="chip grey">env</span></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ SCENE 3 — send (8.2–12.6) ============ -->
+      <section data-hf-id="hf-3oqu" id="scene-3" class="clip" data-start="8.2" data-duration="4.4">
+        <div data-hf-id="hf-4sap" id="s3-cap1" class="cap cap-lg">Sent directly between your machines.</div>
+        <div data-hf-id="hf-bcpc" id="s3-cap2" class="cap cap-sub">No server. No cloud.</div>
+
+        <div data-hf-id="hf-lpje" id="s3-send" class="win-sm">
+          <div data-hf-id="hf-hdop" class="titlebar">
+            <div data-hf-id="hf-kl1j" class="dot r"></div>
+            <div data-hf-id="hf-wb5o" class="dot y"></div>
+            <div data-hf-id="hf-mtza" class="dot g"></div>
+            <div data-hf-id="hf-5jgs" class="doc-title">Transfer</div>
+          </div>
+          <div data-hf-id="hf-9555" class="sm-body">
+            <div data-hf-id="hf-uhot" class="send-row"><span data-hf-id="hf-vvqn" class="lbl">Send workspace to</span><span data-hf-id="hf-bv8x" class="who">BISWAJITA</span></div>
+            <div data-hf-id="hf-txgf" class="btn-send">Send →</div>
+          </div>
+        </div>
+
+        <div data-hf-id="hf-qsut" id="s3-ghost" class="win-sm">
+          <div data-hf-id="hf-ssom" id="ghost-off"><div data-hf-id="hf-qkf7" class="pulse"></div><span data-hf-id="hf-99h4">Awaiting workspace…</span></div>
+          <div data-hf-id="hf-8rdk" id="ghost-on">
+            <div data-hf-id="hf-yv69" id="s3-check">✓</div>
+            <div data-hf-id="hf-ma03" class="recv">Received</div>
+            <div data-hf-id="hf-kpaj" class="recv-sub">Ready to restore</div>
+          </div>
+        </div>
+
+        <div data-hf-id="hf-gdu2" id="s3-flight"></div>
+        <div data-hf-id="hf-i9qw" id="packet3"><span data-hf-id="hf-4g9a" class="key"></span></div>
+      </section>
+
+      <!-- ============ SCENE 4 — restore (12.6–18.6) ============ -->
+      <section data-hf-id="hf-3ioe" id="scene-4" class="clip" data-start="12.6" data-duration="6">
+        <div data-hf-id="hf-0gsw" id="s4-cap" class="cap cap-lg">Restore it — with your edits intact.</div>
+
+        <div data-hf-id="hf-6x3k" id="s4-win" class="win">
+          <div data-hf-id="hf-ikls" class="titlebar">
+            <div data-hf-id="hf-k6qi" class="dot r"></div>
+            <div data-hf-id="hf-v48l" class="dot y"></div>
+            <div data-hf-id="hf-n8ab" class="dot g"></div>
+            <div data-hf-id="hf-qibx" class="doc-title">Workspace Clone</div>
+          </div>
+          <div data-hf-id="hf-3yqs" class="sidebar">
+            <div data-hf-id="hf-vu9v" class="nav active"><span data-hf-id="hf-s4hc" class="ico"></span>Capture</div>
+            <div data-hf-id="hf-klws" class="nav"><span data-hf-id="hf-qxk9" class="ico"></span>Transfer</div>
+            <div data-hf-id="hf-pho9" class="nav"><span data-hf-id="hf-rbva" class="ico"></span>Workspaces</div>
+            <div data-hf-id="hf-jwsm" class="nav"><span data-hf-id="hf-myhz" class="ico"></span>Devices</div>
+            <div data-hf-id="hf-bwrq" class="nav"><span data-hf-id="hf-nct0" class="ico"></span>Settings</div>
+          </div>
+          <div data-hf-id="hf-lwm7" class="main">
+            <h3 data-hf-id="hf-h806">Restore preview</h3>
+            <div data-hf-id="hf-mzx7" class="row"><div data-hf-id="hf-gt8x" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-0j95" class="dot"></span><span data-hf-id="hf-ys6q" class="name">Clone openshorts · main</span><span data-hf-id="hf-4ge6" class="spacer"></span><span data-hf-id="hf-7784" class="chip pending">…</span><span data-hf-id="hf-icgo" class="chip green s4-applied">Applied</span></div></div>
+            <div data-hf-id="hf-ne88" class="row"><div data-hf-id="hf-h7jy" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-0xk6" class="dot"></span><span data-hf-id="hf-2mnk" class="name">Tools: node · git · gh</span><span data-hf-id="hf-4235" class="spacer"></span><span data-hf-id="hf-wi98" class="chip pending">…</span><span data-hf-id="hf-eyfi" class="chip green s4-applied">Ready</span></div></div>
+            <div data-hf-id="hf-m7b5" class="row"><div data-hf-id="hf-hluz" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-1bv7" class="dot"></span><span data-hf-id="hf-kkb4" class="name">Set environment variables</span><span data-hf-id="hf-5908" class="spacer"></span><span data-hf-id="hf-vbc5" class="chip pending">…</span><span data-hf-id="hf-v3zk" class="chip green s4-applied">Applied</span></div></div>
+            <div data-hf-id="hf-mlm6" class="row"><div data-hf-id="hf-i060" class="row-inner" style="display:flex;align-items:center;width:100%;gap:12px;"><span data-hf-id="hf-1q68" class="dot"></span><span data-hf-id="hf-tvpm" class="name mono" style="font-size:14px;">M note.txt · ?? new.txt</span><span data-hf-id="hf-4up7" class="spacer"></span><span data-hf-id="hf-1gmh" class="chip indigo s4-patch">patch</span></div></div>
+          </div>
+        </div>
+
+        <div data-hf-id="hf-8c07" id="s4-git">
+          <span data-hf-id="hf-mt8r" class="mono mono-pre">git status:</span>
+          <span data-hf-id="hf-kpcw" class="mono mono-body">exactly what you left</span>
+        </div>
+      </section>
+
+      <!-- ============ SCENE 5 — outro (18.6–21.8) ============ -->
+      <section data-hf-id="hf-e405" id="scene-5" class="clip" data-start="18.6" data-duration="3.7">
+        <div data-hf-id="hf-sukv" id="s5-group">
+          <div data-hf-id="hf-d7cj" id="s5-mark">WC</div>
+          <div data-hf-id="hf-sx5p" id="s5-name">Workspace Clone</div>
+          <div data-hf-id="hf-sp7s" id="s5-tag">Pick up right where you left off — on the other laptop.</div>
+        </div>
+      </section>
+
+      <!-- ============ AUDIO ============ -->
+      <audio data-hf-id="hf-38rt" id="music" data-start="0" data-duration="22.3" data-volume="0.35" data-fade-out="1.2" data-track-index="10" src="assets/music/happy-beats-business-moves-vol-1-by-ende-dot-app.mp3"></audio>
+      <audio data-hf-id="hf-cu79" id="sfx-l1" data-start="0.15" data-duration="0.11" data-volume="0.7" data-track-index="11" src="assets/sfx/interface/drop_001.ogg"></audio>
+      <audio data-hf-id="hf-k074" id="sfx-fly1" data-start="0.95" data-duration="0.6" data-volume="0.5" data-track-index="12" src="assets/sfx/casino/card-slide-1.ogg"></audio>
+      <audio data-hf-id="hf-g20y" id="sfx-l2" data-start="2.05" data-duration="0.19" data-volume="0.7" data-track-index="13" src="assets/sfx/interface/drop_002.ogg"></audio>
+      <audio data-hf-id="hf-e75i" id="sfx-win" data-start="3.05" data-duration="0.19" data-volume="0.6" data-track-index="14" src="assets/sfx/impact/impactSoft_medium_001.ogg"></audio>
+      <audio data-hf-id="hf-5sic" id="sfx-c1" data-start="4.02" data-duration="0.11" data-volume="0.65" data-track-index="15" src="assets/sfx/interface/drop_001.ogg"></audio>
+      <audio data-hf-id="hf-tnqs" id="sfx-c2" data-start="5.03" data-duration="0.11" data-volume="0.65" data-track-index="16" src="assets/sfx/interface/drop_001.ogg"></audio>
+      <audio data-hf-id="hf-g2dl" id="sfx-c3" data-start="6.03" data-duration="0.11" data-volume="0.65" data-track-index="17" src="assets/sfx/interface/drop_001.ogg"></audio>
+      <audio data-hf-id="hf-i87p" id="sfx-c4" data-start="7.02" data-duration="0.11" data-volume="0.65" data-track-index="18" src="assets/sfx/interface/drop_001.ogg"></audio>
+      <audio data-hf-id="hf-11b1" id="sfx-fly3" data-start="9.1" data-duration="0.6" data-volume="0.5" data-track-index="19" src="assets/sfx/casino/card-slide-1.ogg"></audio>
+      <audio data-hf-id="hf-vrqw" id="sfx-land" data-start="10.4" data-duration="0.69" data-volume="0.65" data-track-index="20" src="assets/sfx/casino/card-place-1.ogg"></audio>
+      <audio data-hf-id="hf-l5ry" id="sfx-check" data-start="10.52" data-duration="0.55" data-volume="0.6" data-track-index="21" src="assets/sfx/impact/impactPlate_light_000.ogg"></audio>
+      <audio data-hf-id="hf-khzf" id="sfx-s1" data-start="13.52" data-duration="0.6" data-volume="0.6" data-track-index="22" src="assets/sfx/interface/switch_001.ogg"></audio>
+      <audio data-hf-id="hf-9zbs" id="sfx-s2" data-start="14.52" data-duration="0.6" data-volume="0.6" data-track-index="23" src="assets/sfx/interface/switch_001.ogg"></audio>
+      <audio data-hf-id="hf-vkv1" id="sfx-s3" data-start="15.52" data-duration="0.6" data-volume="0.6" data-track-index="24" src="assets/sfx/interface/switch_001.ogg"></audio>
+      <audio data-hf-id="hf-q1ey" id="sfx-s4" data-start="16.52" data-duration="0.6" data-volume="0.6" data-track-index="25" src="assets/sfx/interface/switch_001.ogg"></audio>
+      <audio data-hf-id="hf-08n9" id="sfx-git" data-start="17.1" data-duration="0.05" data-volume="0.6" data-track-index="26" src="assets/sfx/interface/select_008.ogg"></audio>
+      <audio data-hf-id="hf-i3iy" id="sfx-bell" data-start="19.9" data-duration="1.48" data-volume="0.7" data-track-index="27" src="assets/sfx/impact/impactBell_heavy_000.ogg"></audio>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+
+      /* ================= Scene 1 — the promise (0.0–3.0) ================= */
+      // hook line 1 — fast in, hold
+      tl.fromTo(
+        "#s1-line1",
+        { opacity: 0, y: 30, scale: 0.98 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.45, ease: "power2.out" },
+        0.12
+      );
+      // sealed packet flies from the left laptop to the right (x: 544 -> 1254)
+      tl.to("#packet", { opacity: 1, duration: 0.05 }, 0.95);
+      tl.to(
+        "#packet",
+        {
+          keyframes: [
+            { y: -28, duration: 0.5, ease: "power1.out" },
+            { y: 0, duration: 0.6, ease: "power1.in" },
+          ],
+        },
+        0.95
+      );
+      tl.to("#packet", { x: 710, duration: 1.1, ease: "power1.inOut" }, 0.95);
+      // right laptop powers on as it lands
+      tl.fromTo(
+        "#s1-power",
+        { opacity: 0, scale: 0.4 },
+        { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2.2)" },
+        1.95
+      );
+      tl.fromTo(
+        "#s1-line2",
+        { opacity: 0, y: 24 },
+        { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" },
+        2.05
+      );
+
+      /* ================= Scene 2 — capture (3.0–8.2) ================= */
+      tl.fromTo(
+        "#s2-win",
+        { opacity: 0, y: 30, scale: 0.95 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: "power2.out" },
+        3.1
+      );
+      tl.fromTo(
+        "#s2-cap",
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" },
+        3.15
+      );
+      // manifest rows — snapped to every-other-beat windows (4.02/5.03/6.03/7.02)
+      const captureRows = Array.prototype.slice.call(
+        document.querySelectorAll(".row-inner")
+      );
+      const capRowTimes = [4.02, 5.03, 6.03, 7.02];
+      capRowTimes.forEach((t, i) => {
+        tl.fromTo(
+          captureRows[i],
+          { opacity: 0, y: 16 },
+          { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" },
+          t // beat-grid: capture row n at <t>s
+        );
+      });
+
+      /* ================= Scene 3 — send (8.2–12.6) ================= */
+      tl.fromTo(
+        "#s3-send",
+        { opacity: 0, scale: 0.96 },
+        { opacity: 1, scale: 1, duration: 0.4, ease: "power2.out" },
+        8.25
+      );
+      tl.fromTo(
+        "#s3-ghost",
+        { opacity: 0, scale: 0.96 },
+        { opacity: 1, scale: 1, duration: 0.4, ease: "power2.out" },
+        8.3
+      );
+      tl.fromTo(
+        "#s3-cap1",
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" },
+        8.5
+      );
+      // packet crosses to the ghost machine (x: 544 -> 1184)
+      tl.to("#packet3", { opacity: 1, duration: 0.05 }, 9.1);
+      tl.to(
+        "#packet3",
+        {
+          keyframes: [
+            { y: -24, duration: 0.5, ease: "power1.out" },
+            { y: 0, duration: 0.8, ease: "power1.in" },
+          ],
+        },
+        9.1
+      );
+      tl.to("#packet3", { x: 640, duration: 1.3, ease: "power1.inOut" }, 9.1);
+      // received — ghost powers on, check pops on the beat
+      tl.to("#ghost-off", { opacity: 0, duration: 0.25 }, 10.42);
+      tl.fromTo(
+        "#ghost-on",
+        { opacity: 0, scale: 0.95 },
+        { opacity: 1, scale: 1, duration: 0.3, ease: "power2.out" },
+        10.45
+      );
+      tl.fromTo(
+        "#s3-check",
+        { opacity: 0, scale: 0.5 },
+        { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2.2)" },
+        10.52 // beat-grid: received check at 10.52s
+      );
+      tl.fromTo(
+        "#s3-cap2",
+        { opacity: 0, y: 16 },
+        { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" },
+        11.0
+      );
+
+      /* ================= Scene 4 — restore (12.6–18.6) ================= */
+      tl.fromTo(
+        "#s4-win",
+        { opacity: 0, y: 30, scale: 0.95 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.5, ease: "power2.out" },
+        12.65
+      );
+      tl.fromTo(
+        "#s4-cap",
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" },
+        12.8
+      );
+      // restore rows flip — every-other-beat windows (13.52/14.52/15.52/16.52)
+      const restoreRows = Array.prototype.slice.call(
+        document.querySelectorAll("#s4-win .row-inner")
+      );
+      const applied = Array.prototype.slice.call(
+        document.querySelectorAll("#s4-win .s4-applied")
+      );
+      const restoreTimes = [13.52, 14.52, 15.52, 16.52];
+      restoreTimes.forEach((t, i) => {
+        tl.fromTo(
+          restoreRows[i],
+          { opacity: 0, y: 16 },
+          { opacity: 1, y: 0, duration: 0.35, ease: "power2.out" },
+          t // beat-grid: restore row n at <t>s
+        );
+        const pendingChip = restoreRows[i].querySelector(".chip.pending");
+        if (pendingChip) {
+          tl.to(pendingChip, { opacity: 0, duration: 0.15 }, t + 0.05);
+        }
+      });
+      // the three status chips flip to Applied/Ready
+      [13.57, 14.57, 15.57].forEach((t, i) => {
+        tl.fromTo(
+          applied[i],
+          { opacity: 0, scale: 0.6 },
+          { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2)" },
+          t
+        );
+      });
+      // the git-status payoff line
+      tl.fromTo(
+        "#s4-git",
+        { opacity: 0, y: 18 },
+        { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" },
+        17.1
+      );
+
+      /* ================= Scene 5 — outro (18.6–21.8) ================= */
+      // beat-locked: 20.02s (strong cue, 1.00) — the logo starts its landing on the hit
+      tl.fromTo(
+        "#s5-group",
+        { opacity: 0, y: 36, scale: 0.9 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: "back.out(1.5)" },
+        20.02
+      );
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>

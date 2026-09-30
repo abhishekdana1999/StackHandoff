@@ -45,3 +45,8 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Hyperframes snapshot / preview artifacts inside brag compositions
+brag-output/composition/snapshots/
+brag-output/composition-vertical/snapshots/
+brag-output/**/frames/
