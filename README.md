@@ -70,6 +70,14 @@ to trigger `.github/workflows/windows-installer.yml`).
 See [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) for the full walkthrough —
 including pairing, firewall setup, and troubleshooting.
 
+## Open source
+
+The desktop application source is in this repository:
+[github.com/abhishekdana1999/StackHandoff](https://github.com/abhishekdana1999/StackHandoff).
+The standalone website source lives at
+[github.com/abhishekdana1999/StackHandoff-site](https://github.com/abhishekdana1999/StackHandoff-site).
+Both are licensed under the [MIT License](LICENSE).
+
 ## Tech stack
 
 | Layer | What it is |
