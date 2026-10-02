@@ -51,6 +51,9 @@ jobs:
           - platform: windows
             runner: windows-latest
             target: x86_64-pc-windows-msvc
+          - platform: linux
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     env:
@@ -58,6 +61,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential curl file libayatana-appindicator3-dev libssl-dev \
+            librsvg2-dev libwebkit2gtk-4.1-dev libxdo-dev patchelf wget
 
       - uses: actions/setup-node@v4
         with:
@@ -94,6 +105,19 @@ jobs:
           Copy-Item "src-tauri/target/${{ matrix.target }}/release/bundle/nsis/StackHandoff_${env:VERSION}_x64-setup.exe" `
             "release-assets/StackHandoff.exe"
 
+      - name: Stage Linux release assets
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          bundle="src-tauri/target/${{ matrix.target }}/release/bundle"
+          deb="$(find "$bundle/deb" -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          appimage="$(find "$bundle/appimage" -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          test -n "$deb" || { echo "No .deb package found in $bundle/deb" >&2; exit 1; }
+          test -n "$appimage" || { echo "No AppImage found in $bundle/appimage" >&2; exit 1; }
+          cp "$deb" release-assets/StackHandoff.deb
+          cp "$appimage" release-assets/StackHandoff.AppImage
+
       - name: Upload release asset
         uses: actions/upload-artifact@v4
         with:
@@ -124,6 +148,11 @@ jobs:
           name: release-assets-windows
           path: release-assets
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets-linux
+          path: release-assets
+
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -132,11 +161,15 @@ jobs:
             gh release upload "$RELEASE_TAG" \
               release-assets/StackHandoff.dmg \
               release-assets/StackHandoff.exe \
+              release-assets/StackHandoff.deb \
+              release-assets/StackHandoff.AppImage \
               --clobber
           else
             gh release create "$RELEASE_TAG" \
               release-assets/StackHandoff.dmg \
               release-assets/StackHandoff.exe \
+              release-assets/StackHandoff.deb \
+              release-assets/StackHandoff.AppImage \
               --title "StackHandoff $VERSION" \
               --generate-notes \
               --target "$GITHUB_SHA"

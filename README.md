@@ -22,8 +22,8 @@ land on the other machine exactly as you left them.
   workspace, running a command, opening an application — is shown first with a
   plain-English explanation. You review what was captured, decide what to skip,
   and apply it.
-- **Mac ↔ Windows.** Ships as a Mac app; builds Windows installers (`.exe` /
-  `.msi`) on the laptop or via GitHub Actions.
+- **macOS, Windows, and Ubuntu.** Builds a macOS `.dmg`, Windows `.exe`/`.msi`,
+  and Ubuntu `.deb`/AppImage installers through GitHub Actions.
 - **Your git history survives the trip.** Cloned repositories are rebuilt on
   the destination with the working-tree delta re-applied as a patch — `git
   status` on the other machine shows exactly your changes, not a rewritten tree.
@@ -62,10 +62,21 @@ npm install
 npm run tauri dev
 ```
 
+On Ubuntu 24.04, install Tauri's Linux build dependencies before running the app:
+
+```bash
+sudo apt-get update
+sudo apt-get install --no-install-recommends -y \
+  build-essential curl file libayatana-appindicator3-dev libssl-dev \
+  librsvg2-dev libwebkit2gtk-4.1-dev libxdo-dev patchelf wget
+npm ci
+npm run tauri dev
+```
+
 On Windows, the same flow works from PowerShell; you also need Visual Studio
-Build Tools with the **Desktop development with C++** workload. For a
-shareable installer, run `bash scripts/build_windows.sh` (or push a `v*` tag
-to trigger `.github/workflows/windows-installer.yml`).
+Build Tools with the **Desktop development with C++** workload. For release
+installers on all three platforms, push a version tag such as `v0.1.2` to trigger
+`.github/workflows/windows-installer.yml`.
 
 See [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) for the full walkthrough —
 including pairing, firewall setup, and troubleshooting.
