@@ -50,3 +50,7 @@ yarn-error.log*
 brag-output/composition/snapshots/
 brag-output/composition-vertical/snapshots/
 brag-output/**/frames/
+
+# Docs
+docs/WorkspaceClone_Tracking.xlsx
+docs/PRODUCT_GROWTH_PLAN.md

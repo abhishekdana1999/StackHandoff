@@ -1,93 +1,104 @@
 # StackHandoff
 
-**Pick up right where you left off.**
+StackHandoff is a local-first desktop app for moving a developer workspace from one machine to another without manually rebuilding the environment.
 
-StackHandoff is a peer-to-peer desktop app for cross-device work-session
-continuity. Start work on one machine — project folders open in your editor,
-tools installed, environment variables set, accounts signed in — and when you
-travel, it captures that setup and rebuilds it on the other machine.
+The current implementation is an MVP focused on the same-network workflow: pair devices, capture a workspace manifest, send it to a peer, review a restore plan, and apply the changes on the destination machine.
 
-It does **not** copy your files. It captures a *description* of your working
-environment — a **manifest** — and restores that environment on the other side:
-open projects and their git branches, running applications, runtimes and
-command-line tools, environment variables, and the accounts you were signed in
-to. Git working-tree changes travel along as a patch, so your in-progress edits
-land on the other machine exactly as you left them.
+## Status
 
-- **Peer-to-peer, no accounts.** Your two machines find each other on the local
-  network (mDNS) and talk directly over an encrypted, key-authenticated
-  connection (Noise protocol + X25519 + AEAD). There is no server, no cloud
-  account, no sign-up.
-- **Nothing happens without you saying so.** Every step — accepting a
-  workspace, running a command, opening an application — is shown first with a
-  plain-English explanation. You review what was captured, decide what to skip,
-  and apply it.
-- **macOS, Windows, and Ubuntu.** Builds a macOS `.dmg`, Windows `.exe`/`.msi`,
-  and Ubuntu `.deb`/AppImage installers through GitHub Actions.
-- **Your git history survives the trip.** Cloned repositories are rebuilt on
-  the destination with the working-tree delta re-applied as a patch — `git
-  status` on the other machine shows exactly your changes, not a rewritten tree.
+### Shipped in the current codebase
 
-## How it works
+- Local peer-to-peer pairing over the same network
+- Device discovery and authenticated pairing with Noise/X25519 keys
+- Trust scopes for paired-device permissions
+- Workspace capture for project roots and associated metadata
+- Workspace transfer and receipt between paired devices
+- Incoming-transfer handling and explicit accept/refuse flow
+- Preflight, prepare, and restore-preview stages before applying a workspace
+- Restore execution tracking and success/failure reporting
+- Desktop app built with Tauri + React + Rust
+- Cross-platform desktop project setup for macOS, Windows, and Linux targets
 
+### Planned / not yet shipped
+
+These are part of the product roadmap, not the current implementation:
+
+- Cloud relay or internet-based handoff
+- Account-based device registration and remote management
+- Remote restore requests without a local paired network
+- Bulk credential or secret synchronization
+- Automatic restoration of every runtime, app, and service on the machine
+- Full non-Git folder sync for all developer workloads
+- Paid cloud plans, hosted services, or managed account features
+- Broader automation beyond the local workspace restore flow
+
+The roadmap and product direction live in [docs/PRODUCT_GROWTH_PLAN.md](docs/PRODUCT_GROWTH_PLAN.md).
+
+## How the shipped flow works
+
+```text
+Pair devices on the same network
+        ↓
+Capture workspace state
+        ↓
+Send to a trusted peer
+        ↓
+Receive on the destination machine
+        ↓
+Review preflight and restore plan
+        ↓
+Apply restore and continue working
 ```
-macOS laptop                          Windows laptop
-┌──────────────────┐                  ┌──────────────────┐
-│ Capture workspace│ ── encrypted ──▶ │  Review + apply  │
-│   (the manifest) │   mDNS found     │  (restore plan)  │
-└──────────────────┘                  └──────────────────┘
-```
 
-1. **Pair** the two machines on the same network and confirm each other's
-   fingerprints by hand.
-2. **Capture** a workspace: which project folders you use and the git branch
-   each is on, which apps were open and for which projects, which runtimes,
-   tools and environment variables you need, which accounts you were signed in
-   to — plus your uncommitted git changes as a patch.
-3. **Send** it. The workspace travels directly between the machines, sealed
-   and encrypted.
-4. **Restore** on the other laptop: review what was found, skip what you don't
-   want, and apply the rest — projects cloned or re-synced, apps opened, tools
-   verified, git delta re-applied.
+1. Pair a second machine running StackHandoff and compare the safety number out of band.
+2. Capture a workspace from the current machine: the current project roots, Git state, and workspace metadata.
+3. Send the workspace to a paired device over the local network.
+4. On the receiving machine, review the incoming transfer and decide whether to accept it.
+5. Inspect the restore plan and preflight checks before applying it.
+6. Restore the workspace and continue with the same work session on the other machine.
+
+This is intentionally a local-first MVP. It does not claim remote cloud handoff, zero-configuration credential sync, or fully automated machine recreation.
+
+## What is not included in the MVP
+
+StackHandoff does not currently:
+
+- copy passwords or secrets between machines
+- silently grant access to arbitrary devices
+- replace the user's entire machine configuration automatically
+- provide cloud-hosted workspace relay or account-based handoff
+- attempt to restore every possible runtime or service without review
 
 ## Getting started
 
-Requirements: [Rust](https://rustup.rs) and [Node.js 20+](https://nodejs.org).
+Requirements: [Node.js 20+](https://nodejs.org/) and [Rust](https://rustup.rs).
 
 ```bash
-# install dependencies
+# install frontend dependencies
 npm install
 
-# run the desktop app (first build compiles ~10 Rust crates — give it a few minutes)
-npm run tauri dev
+# build the frontend bundle
+npm run build
+
+# run the desktop app from the Rust workspace
+cd src-tauri
+cargo run -p app
 ```
 
-On Ubuntu 24.04, install Tauri's Linux build dependencies before running the app:
+For local development and validation, the project also supports the usual frontend test and type-check flow:
 
 ```bash
-sudo apt-get update
-sudo apt-get install --no-install-recommends -y \
-  build-essential curl file libayatana-appindicator3-dev libssl-dev \
-  librsvg2-dev libwebkit2gtk-4.1-dev libxdo-dev patchelf wget
-npm ci
-npm run tauri dev
+npm run test:run
+npx tsc --noEmit
 ```
 
-On Windows, the same flow works from PowerShell; you also need Visual Studio
-Build Tools with the **Desktop development with C++** workload. For release
-installers on all three platforms, push a version tag such as `v0.1.2` to trigger
-`.github/workflows/windows-installer.yml`.
+For Rust verification:
 
-See [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) for the full walkthrough —
-including pairing, firewall setup, and troubleshooting.
-
-## Open source
-
-The desktop application source is in this repository:
-[github.com/abhishekdana1999/StackHandoff](https://github.com/abhishekdana1999/StackHandoff).
-The standalone website source lives at
-[github.com/abhishekdana1999/StackHandoff-site](https://github.com/abhishekdana1999/StackHandoff-site).
-Both are licensed under the [MIT License](LICENSE).
+```bash
+cd src-tauri
+cargo test --workspace
+cargo fmt --all --check
+```
 
 ## Tech stack
 
@@ -95,38 +106,30 @@ Both are licensed under the [MIT License](LICENSE).
 | --- | --- |
 | Shell | [Tauri 2](https://v2.tauri.app/) desktop app |
 | Frontend | React 18 + TypeScript + Vite + Tailwind |
-| Backend | Rust workspace under `src-tauri/` — crates for types, cryptography, database, networking, per-tool adapters, preflight checks, restore planner/executor, and the Tauri command layer |
-| Data | SQLite via SQLx (offline migrations) |
-| Transport | Noise_IK encryption, mDNS discovery, AEAD-sealed workspace archives |
+| Backend | Rust workspace under `src-tauri/` with crates for core app logic, networking, crypto, database, adapters, preflight, restore, and Tauri commands |
+| Data | SQLite via SQLx |
+| Transport | mDNS discovery, authenticated device pairing, and encrypted peer transfer |
 
 ## Repository layout
 
-```
-├── docs/          ← developer guide, handoff notes, tracking workbook
-├── scripts/       ← tracker updaters, Windows build, parity + design-token checks
+```text
+├── docs/          ← product plan, developer notes, handoff documentation
+├── scripts/       ← repo checks and build automation
 ├── src/           ← React + TypeScript frontend
-├── src-tauri/     ← Rust workspace (core, crypto, db, network, adapters, restore, app)
-└── README.md
+├── src-tauri/     ← Rust workspace for the desktop app and core logic
+├── LICENSE
+├── package.json
+├── README.md
+└── .gitignore
 ```
 
-The frontend-to-backend boundary lives in exactly one file:
-`src/lib/ipc.ts` names the Tauri commands, and
-`src-tauri/app/src/lib.rs` is the registry that must match it —
-`scripts/check_command_parity.py` enforces the two never drift.
+## Open source
 
-## Testing
+The app source is in this repository: [github.com/abhishekdana1999/StackHandoff](https://github.com/abhishekdana1999/StackHandoff).
+It is licensed under the [MIT License](LICENSE).
 
-The Rust workspace has 419 tests across adapters, cryptography, the restore
-planner/executor, and end-to-end transfer scenarios; the frontend has 102
-tests over routing, theming, and the receive flow. `tsc --noEmit` passes with
-zero errors and the workspace builds with no warnings.
+## Notes for contributors
 
-```bash
-# frontend
-npm run test:run
-npx tsc --noEmit
-
-# backend (from src-tauri/)
-cargo test --workspace
-cargo fmt --all --check
-```
+- Frontend-to-backend command names are declared in [src/lib/ipc.ts](src/lib/ipc.ts) and must stay aligned with the Tauri registry in [src-tauri/app/src/lib.rs](src-tauri/app/src/lib.rs).
+- The product direction is intentionally split between the shipped local MVP and the future roadmap in [docs/PRODUCT_GROWTH_PLAN.md](docs/PRODUCT_GROWTH_PLAN.md).
+- This README describes the current implementation, not aspirational or future product claims.
