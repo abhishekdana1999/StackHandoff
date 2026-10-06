@@ -32,8 +32,6 @@ These are part of the product roadmap, not the current implementation:
 - Paid cloud plans, hosted services, or managed account features
 - Broader automation beyond the local workspace restore flow
 
-The roadmap and product direction live in [docs/PRODUCT_GROWTH_PLAN.md](docs/PRODUCT_GROWTH_PLAN.md).
-
 ## How the shipped flow works
 
 ```text
