@@ -31,6 +31,8 @@ pub fn run() {
             // Project discovery
             workspace_clone_commands::projects::list_project_roots,
             workspace_clone_commands::projects::set_project_roots,
+            // Application discovery
+            workspace_clone_commands::app_discovery::discover_applications,
             // Workspace commands
             workspace_clone_commands::workspace::list_workspaces,
             workspace_clone_commands::workspace::get_workspace,

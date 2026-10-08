@@ -863,6 +863,44 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    #[tokio::test]
+    async fn a_non_git_project_is_captured_without_git_metadata() {
+        let dir = std::env::temp_dir().join(format!(
+            "wc-git-adapter-non-git-project-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("index.html"), "<h1>Project</h1>").unwrap();
+        let selection = CaptureSelection {
+            projects: vec![SelectedProject {
+                id: "plain-project".into(),
+                name: "plain-project".into(),
+                source_path: dir.to_string_lossy().into_owned(),
+                destination_location_id: "code".into(),
+            }],
+            ..CaptureSelection::default()
+        };
+
+        let context = GitAdapter
+            .capture(&LocalContext::current(), &selection)
+            .await
+            .unwrap();
+        let projects: Vec<Project> = serde_json::from_value(context.data).unwrap();
+        let absolute_source = dir.to_string_lossy().into_owned();
+
+        assert_eq!(projects.len(), 1);
+        assert_eq!(projects[0].id, "plain-project");
+        assert!(projects[0].git.is_none());
+        assert!(
+            !projects[0]
+                .source_path_hint
+                .contains(absolute_source.as_str()),
+            "the absolute source path must not enter the manifest"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     #[test]
     fn remote_scrubbing_is_reused_from_the_scanner() {
         // Guards against the two modules drifting apart.

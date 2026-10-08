@@ -352,6 +352,36 @@ fn assemble(
     requirements.environment.presence_only.sort();
     requirements.environment.presence_only.dedup();
 
+    // Add discovered browser URLs to the browser application
+    if !selection.discovered_browser_urls.is_empty() {
+        let browser_app = Application {
+            id: "browser-discovered-urls".to_string(),
+            adapter: "browser".to_string(),
+            project_id: None,
+            required: false,
+            config: serde_json::json!({ "urls": selection.discovered_browser_urls }),
+        };
+        manifest.applications.push(browser_app);
+    }
+
+    // Add app intents as applications with manual adapter
+    for intent in &selection.app_intents {
+        let app = Application {
+            id: format!("app-intent-{}", intent.id),
+            adapter: if intent.has_adapter { intent.adapter_id.clone().unwrap_or_default() } else { "manual".to_string() },
+            project_id: None,
+            required: false,
+            config: serde_json::json!({
+                "name": intent.name,
+                "category": format!("{:?}", intent.category).to_lowercase(),
+                "has_adapter": intent.has_adapter,
+                "adapter_id": intent.adapter_id,
+                "selected_folders": intent.selected_folders,
+            }),
+        };
+        manifest.applications.push(app);
+    }
+
     manifest.projects = scrub_projects(manifest.projects);
     manifest.applications = scrub_applications(manifest.applications);
 

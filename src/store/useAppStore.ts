@@ -48,6 +48,8 @@ export function emptySelection(): CaptureSelection {
     projects: [],
     includeApplications: [],
     browserUrls: [],
+    discoveredBrowserUrls: [],
+    appIntents: [],
     terminalDirs: [],
     terminalCommands: [],
     envVarNames: [],

@@ -57,7 +57,7 @@ pub async fn configured_roots(pool: &DbPool) -> Vec<PathBuf> {
     }
 }
 
-/// A repository the user may choose to include.
+/// A project folder the user may choose to include, whether or not it uses Git.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectCandidate {
@@ -125,7 +125,7 @@ pub struct ProjectScan {
     pub unreadable_roots: Vec<String>,
 }
 
-/// Scan the configured roots for repositories.
+/// Scan the configured roots for Git repositories and recognizable project folders.
 #[command]
 pub async fn list_project_roots(pool: State<'_, DbPool>) -> Result<ProjectScan> {
     let roots = configured_roots(pool.inner()).await;

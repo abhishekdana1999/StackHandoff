@@ -26,6 +26,11 @@ pub const EXCLUDED_DIRS: &[&str] = &[
     ".svn",
     ".hg",
     "node_modules",
+    "bower_components",
+    "jspm_packages",
+    "vendor",
+    ".pnpm-store",
+    "__pypackages__",
     "target",
     "dist",
     "build",
@@ -399,8 +404,17 @@ mod tests {
         std::fs::write(root.join("README.md"), b"# hi").unwrap();
         std::fs::write(root.join(".gitignore"), b"target").unwrap();
         std::fs::write(root.join(".env"), b"SECRET=1").unwrap();
-        std::fs::create_dir_all(root.join("node_modules/pkg")).unwrap();
-        std::fs::write(root.join("node_modules/pkg/index.js"), b"junk").unwrap();
+        for dependency_dir in [
+            "node_modules",
+            "bower_components",
+            "jspm_packages",
+            "vendor",
+            ".pnpm-store",
+            "__pypackages__",
+        ] {
+            std::fs::create_dir_all(root.join(dependency_dir).join("pkg")).unwrap();
+            std::fs::write(root.join(dependency_dir).join("pkg/index.js"), b"junk").unwrap();
+        }
         std::fs::write(root.join(".DS_Store"), b"\0\0").unwrap();
         std::fs::write(root.join("notes.db"), b"db").unwrap();
     }
@@ -420,7 +434,19 @@ mod tests {
         assert!(!rels.iter().any(|r| r == ".env"));
         assert!(!rels.iter().any(|r| r == ".DS_Store"));
         assert!(!rels.iter().any(|r| r == "notes.db"));
-        assert!(!rels.iter().any(|r| r.contains("node_modules")));
+        for dependency_dir in [
+            "node_modules",
+            "bower_components",
+            "jspm_packages",
+            "vendor",
+            ".pnpm-store",
+            "__pypackages__",
+        ] {
+            assert!(
+                !rels.iter().any(|r| r.starts_with(dependency_dir)),
+                "dependency directory {dependency_dir} was included"
+            );
+        }
         assert_eq!(walk.entries.len(), 3);
         // Sorted.
         assert_eq!(rels, {

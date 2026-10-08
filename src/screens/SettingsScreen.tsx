@@ -219,7 +219,7 @@ function DeviceTab() {
 // ---------------------------------------------------------------------------
 
 /**
- * The directories a capture scans for Git repositories.
+ * The directories a capture scans for Git repositories and recognizable project folders.
  *
  * This is the one capture setting that is a real setting: the adapter runs
  * against whatever is here, and changing it changes what the next capture sees.
@@ -271,8 +271,8 @@ function CaptureTab() {
             <CardTitle>Project folders</CardTitle>
           </div>
           <CardDescription>
-            A capture looks for Git repositories in these folders, one level deep. Change the
-            list to match where you keep your work.
+            A capture looks for Git repositories and common project files under these folders.
+            Change the list to match where you keep your work.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

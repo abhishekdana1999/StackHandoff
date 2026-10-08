@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
@@ -13,6 +13,7 @@ import {
   Monitor,
   Terminal,
   Variable,
+  LayoutDashboard,
 } from 'lucide-react';
 import { Button } from '@components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@components/ui/Card';
@@ -21,9 +22,17 @@ import { Input } from '@components/ui/Input';
 import { Label } from '@components/ui/Label';
 import { Textarea } from '@components/ui/Textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@components/ui/Tabs';
-import { captureWorkspace, errorMessage, listProjectRoots } from '@lib/ipc';
+import { Switch } from '@components/ui/Switch';
+import { captureWorkspace, discoverApplications, errorMessage, listProjectRoots } from '@lib/ipc';
 import { emptySelection, useAppStore } from '@store/useAppStore';
-import type { ApprovedCommand, CaptureSelection, ProjectCandidate } from '@model';
+import type {
+  AppIntent,
+  ApprovedCommand,
+  ApplicationCategory,
+  CaptureSelection,
+  DiscoveredApplication,
+  ProjectCandidate,
+} from '@model';
 
 /**
  * The adapters whose captured context the user can include.
@@ -49,7 +58,7 @@ const OPTIONAL_ADAPTERS = [
   },
 ] as const;
 
-const SECTION_IDS = ['projects', 'adapters', 'browser', 'env', 'commands'] as const;
+const SECTION_IDS = ['projects', 'adapters', 'applications', 'browser', 'env', 'commands'] as const;
 type SectionId = (typeof SECTION_IDS)[number];
 
 /** Split a pasted block into individual URLs, one per line or comma. */
@@ -89,7 +98,7 @@ export function CaptureScreen() {
   const setCapture = useAppStore((s) => s.setCapture);
   const clearDraft = useAppStore((s) => s.clearDraft);
 
-  const [expanded, setExpanded] = useState<string[]>(['projects', 'adapters']);
+  const [expanded, setExpanded] = useState<string[]>(['projects', 'adapters', 'applications']);
   const [selectedProjectIds, setSelectedProjectIds] = useState<Set<string>>(new Set());
   const [selectedAdapters, setSelectedAdapters] = useState<Set<string>>(new Set());
   const [urlText, setUrlText] = useState('');
@@ -97,14 +106,23 @@ export function CaptureScreen() {
   const [commandText, setCommandText] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  // Application discovery state
+  const [discoveredApps, setDiscoveredApps] = useState<DiscoveredApplication[]>([]);
+  const [selectedAppIds, setSelectedAppIds] = useState<Set<string>>(new Set());
+  const [selectedAppFolders, setSelectedAppFolders] = useState<Map<string, Set<string>>>(new Map());
+  const [discoveryLoading, setDiscoveryLoading] = useState(false);
+  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
+  const [browserTabWarnings, setBrowserTabWarnings] = useState<string[]>([]);
+  const [browserTabOptIn, setBrowserTabOptIn] = useState(false);
+  const [browserTabDiscoveryLoading, setBrowserTabDiscoveryLoading] = useState(false);
+  const discoveryRequestId = useRef(0);
+
   const scan = useQuery({ queryKey: ['project-scan'], queryFn: listProjectRoots });
 
   const capture = useMutation({
     mutationFn: (selection: CaptureSelection) => captureWorkspace(draft.name, selection),
     onSuccess: (result) => {
       setError(null);
-      // The manifest is the record of what was actually captured, which is not
-      // always what was asked for. Warnings say so rather than being dropped.
       setCapture({
         workspaceId: result.manifest.workspace.id,
         manifest: result.manifest,
@@ -116,8 +134,46 @@ export function CaptureScreen() {
     onError: (e) => setError(errorMessage(e)),
   });
 
+  const handleBrowserTabOptIn = (enabled: boolean) => {
+    setBrowserTabOptIn(enabled);
+    setDiscoveryError(null);
+    if (!enabled) {
+      setBrowserTabWarnings([]);
+      setSelectedAppIds((prev) => new Set(
+        Array.from(prev).filter((id) =>
+          discoveredApps.find((app) => app.id === id)?.category !== 'browser'
+        )
+      ));
+      setSelectedAppFolders((prev) => new Map(
+        Array.from(prev).filter(([id]) =>
+          discoveredApps.find((app) => app.id === id)?.category !== 'browser'
+        )
+      ));
+    }
+  };
+
   const projects = scan.data?.projects ?? [];
   const browserUrls = useMemo(() => parseUrlList(urlText), [urlText]);
+  const discoveredBrowserUrls = useMemo(() =>
+    discoveredApps
+      .filter((a) => a.category === 'browser')
+      .flatMap((a) => a.openFolders.map((f) => f.path)),
+    [discoveredApps],
+  );
+  const appIntents = useMemo(() =>
+    Array.from(selectedAppIds)
+      .map((appId) => discoveredApps.find((a) => a.id === appId))
+      .filter((a): a is DiscoveredApplication => !!a)
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        category: a.category,
+        hasAdapter: a.hasAdapter,
+        adapterId: a.adapterId,
+        selectedFolders: Array.from(selectedAppFolders.get(a.id) || new Set()),
+      })),
+    [discoveredApps, selectedAppIds, selectedAppFolders],
+  );
   const envNames = useMemo(
     () =>
       envText
@@ -133,20 +189,79 @@ export function CaptureScreen() {
     [projects, selectedProjectIds]
   );
 
+  // Refresh folder/app matches when projects change, and refresh browser tabs
+  // whenever the user changes the explicit browser-discovery opt-in.
+  useEffect(() => {
+    const requestId = ++discoveryRequestId.current;
+    const discover = async () => {
+      setDiscoveryLoading(true);
+      setDiscoveryError(null);
+      if (browserTabOptIn) {
+        setBrowserTabDiscoveryLoading(true);
+      }
+      try {
+        const result = await discoverApplications({ includeBrowserTabs: browserTabOptIn });
+        if (requestId !== discoveryRequestId.current) return;
+        setDiscoveredApps(result.applications);
+        setBrowserTabWarnings(browserTabOptIn ? result.warnings : []);
+        // Auto-select apps that have folders matching selected projects
+        const projectPaths = new Set(chosenProjects.map((p) => p.path));
+        const initialSelectedApps = new Set<string>();
+        const initialSelectedFolders = new Map<string, Set<string>>();
+
+        for (const app of result.applications) {
+          const matchingFolders = app.openFolders.filter((f) => projectPaths.has(f.path));
+          if (matchingFolders.length > 0) {
+            initialSelectedApps.add(app.id);
+            initialSelectedFolders.set(app.id, new Set(matchingFolders.map((f) => f.path)));
+          }
+        }
+
+        setSelectedAppIds(initialSelectedApps);
+        setSelectedAppFolders(initialSelectedFolders);
+      } catch (e) {
+        if (requestId === discoveryRequestId.current) {
+          setDiscoveryError(errorMessage(e));
+        }
+      } finally {
+        if (requestId === discoveryRequestId.current) {
+          setDiscoveryLoading(false);
+          setBrowserTabDiscoveryLoading(false);
+        }
+      }
+    };
+    discover();
+    return () => {
+      discoveryRequestId.current += 1;
+    };
+  }, [browserTabOptIn, chosenProjects]);
+
+  // Handle browser tab opt-in
+  const selectedAppFoldersForCapture = useMemo(() => {
+    const folders: { appId: string; path: string; name: string }[] = [];
+    for (const [appId, paths] of selectedAppFolders) {
+      const app = discoveredApps.find((a) => a.id === appId);
+      if (app) {
+        for (const path of paths) {
+          const folder = app.openFolders.find((f) => f.path === path);
+          if (folder) {
+            folders.push({ appId, path, name: folder.name });
+          }
+        }
+      }
+    }
+    return folders;
+  }, [discoveredApps, selectedAppFolders]);
+
   const selectedCount =
     chosenProjects.length +
     selectedAdapters.size +
     browserUrls.length +
     envNames.length +
-    commands.length;
+    commands.length +
+    selectedAppIds.size +
+    selectedAppFoldersForCapture.length;
 
-  /**
-   * Whether there is anything to capture.
-   *
-   * A capture with an empty selection is legal — it produces a manifest with no
-   * projects — but it is almost always a mis-click, and the result is a workspace
-   * the user then has to delete. Worth one click of friction to avoid.
-   */
   const nothingSelected = selectedCount === 0;
   const canCapture = draft.name.trim().length > 0 && !nothingSelected && !capture.isPending;
 
@@ -160,7 +275,58 @@ export function CaptureScreen() {
     return next;
   };
 
+  const toggleApp = (appId: string) => {
+    setSelectedAppIds((prev) => toggle(prev, appId));
+    // When deselecting an app, clear its folder selections
+    setSelectedAppFolders((prev) => {
+      const next = new Map(prev);
+      if (!next.has(appId)) {
+        next.delete(appId);
+      }
+      return next;
+    });
+  };
+
+  const toggleAppFolder = (appId: string, folderPath: string) => {
+    setSelectedAppFolders((prev) => {
+      const next = new Map(prev);
+      let appFolders = next.get(appId);
+      if (!appFolders) {
+        appFolders = new Set();
+        next.set(appId, appFolders);
+      }
+      if (appFolders.has(folderPath)) {
+        appFolders.delete(folderPath);
+      } else {
+        appFolders.add(folderPath);
+      }
+      if (appFolders.size === 0) {
+        next.delete(appId);
+      }
+      return next;
+    });
+  };
+
   const handleCapture = () => {
+    // Build app intents from selected apps and their folders
+    const appIntents: AppIntent[] = Array.from(selectedAppIds).map((appId) => {
+      const app = discoveredApps.find((a) => a.id === appId);
+      const selectedFolders = selectedAppFolders.get(appId) || new Set();
+      return {
+        id: appId,
+        name: app?.name || appId,
+        category: app?.category || 'other',
+        hasAdapter: app?.hasAdapter || false,
+        adapterId: app?.adapterId || null,
+        selectedFolders: Array.from(selectedFolders),
+      };
+    });
+
+    // Build discovered browser URLs from browser apps
+    const discoveredBrowserUrls = discoveredApps
+      .filter((a) => a.category === 'browser')
+      .flatMap((a) => a.openFolders.map((f) => f.path));
+
     const selection: CaptureSelection = {
       ...emptySelection(),
       projects: chosenProjects.map((p) => ({
@@ -171,8 +337,8 @@ export function CaptureScreen() {
       })),
       includeApplications: Array.from(selectedAdapters).sort(),
       browserUrls,
-      // Terminal working directories are the selected projects' paths. Sending
-      // anything else would name a directory the user did not choose.
+      discoveredBrowserUrls,
+      appIntents,
       terminalDirs: selectedAdapters.has('terminal')
         ? chosenProjects.map((p) => p.path)
         : [],
@@ -204,6 +370,36 @@ export function CaptureScreen() {
       </button>
     );
   };
+
+  const getCategoryLabel = (category: ApplicationCategory) => {
+    switch (category) {
+      case 'editor':
+        return 'Editors';
+      case 'ide':
+        return 'IDEs';
+      case 'terminal':
+        return 'Terminals';
+      case 'browser':
+        return 'Browsers';
+      case 'database':
+        return 'Database Tools';
+      case 'design':
+        return 'Design Tools';
+      default:
+        return 'Other';
+    }
+  };
+
+  // Group apps by category
+  const appsByCategory = useMemo(() => {
+    const grouped = new Map<ApplicationCategory, DiscoveredApplication[]>();
+    for (const app of discoveredApps) {
+      const existing = grouped.get(app.category) || [];
+      existing.push(app);
+      grouped.set(app.category, existing);
+    }
+    return grouped;
+  }, [discoveredApps]);
 
   return (
     <div className="space-y-6">
@@ -278,7 +474,7 @@ export function CaptureScreen() {
                       )}
                       {scan.isSuccess && projects.length === 0 && (
                         <div className="text-sm text-muted-foreground space-y-2">
-                          <p>No repositories were found in the configured folders.</p>
+                          <p>No project folders were found in the configured locations.</p>
                           {scan.data.missingRoots.length > 0 && (
                             <p>
                               These folders do not exist:{' '}
@@ -298,6 +494,94 @@ export function CaptureScreen() {
                           }
                         />
                       ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* --- Applications (Discovered) ----------------------------------- */}
+                <div className="border rounded-lg overflow-hidden">
+                  {sectionHeader(
+                    'applications',
+                    'Applications',
+                    <LayoutDashboard className="w-5 h-5" />,
+                    `${selectedAppIds.size} app${selectedAppIds.size === 1 ? '' : 's'} · ${selectedAppFoldersForCapture.length} folder${selectedAppFoldersForCapture.length === 1 ? '' : 's'}`
+                  )}
+                  {expanded.includes('applications') && (
+                    <div className="p-4 space-y-3">
+                      {discoveryLoading && (
+                        <div className="flex items-center gap-3 p-3 text-sm text-muted-foreground">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Discovering running applications…
+                        </div>
+                      )}
+                      {discoveryError && (
+                        <div role="alert" className="text-sm text-destructive">
+                          Discovery failed: {discoveryError}
+                        </div>
+                      )}
+                      {discoveryLoading === false && discoveredApps.length === 0 && (
+                        <p className="text-sm text-muted-foreground">
+                          No running applications were detected. Make sure your editors,
+                          terminals, and browsers are open.
+                        </p>
+                      )}
+                      {discoveryLoading === false && (
+                        <>
+                          {/* Browser tab opt-in */}
+                          <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50">
+                            <Globe className="w-5 h-5 text-muted-foreground" />
+                            <div className="flex-1">
+                              <Label className="font-medium">Browser tab discovery (opt-in)</Label>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Enable to read open Safari tabs (macOS may ask you to allow StackHandoff
+                                in Automation settings) and tabs from Chromium browsers started with
+                                remote debugging. Only http/https URLs are captured; installed browsers
+                                with no readable open tabs are not listed.
+                              </p>
+                            </div>
+                            <Switch
+                              checked={browserTabOptIn}
+                              onCheckedChange={handleBrowserTabOptIn}
+                              disabled={browserTabDiscoveryLoading}
+                            />
+                            {browserTabDiscoveryLoading && (
+                              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                            )}
+                          </div>
+                          {browserTabWarnings.length > 0 && (
+                            <div
+                              role="status"
+                              className="text-sm text-warning-fg bg-warning-bg border border-warning-border rounded-lg p-3"
+                            >
+                              {browserTabWarnings.map((warning) => (
+                                <p key={warning}>{warning}</p>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Applications grouped by category */}
+                          {Array.from(appsByCategory.entries()).map(([category, apps]) => (
+                            <div key={category} className="space-y-2">
+                              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                                {getCategoryLabel(category)}
+                              </h4>
+                              {apps.map((app) => (
+                                <ApplicationRow
+                                  key={app.id}
+                                  app={app}
+                                  selected={selectedAppIds.has(app.id)}
+                                  selectedFolders={selectedAppFolders.get(app.id) || new Set()}
+                                  onToggleApp={toggleApp}
+                                  onToggleFolder={toggleAppFolder}
+                                  hasAdapter={app.hasAdapter}
+                                  adapterId={app.adapterId}
+                                  isLoading={discoveryLoading}
+                                />
+                              ))}
+                            </div>
+                          ))}
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -344,11 +628,11 @@ export function CaptureScreen() {
                     'browser',
                     'Browser URLs',
                     <Globe className="w-5 h-5" />,
-                    `${browserUrls.length} URL${browserUrls.length === 1 ? '' : 's'}`
+                    `${browserUrls.length} manual + ${discoveredBrowserUrls.length} discovered`
                   )}
                   {expanded.includes('browser') && (
                     <div className="p-4 space-y-2">
-                      <Label htmlFor="capture-urls">One URL per line</Label>
+                      <Label htmlFor="capture-urls">One URL per line (manual entry)</Label>
                       <Textarea
                         id="capture-urls"
                         rows={5}
@@ -356,6 +640,25 @@ export function CaptureScreen() {
                         value={urlText}
                         onChange={(e) => setUrlText(e.target.value)}
                       />
+                      {discoveredBrowserUrls.length > 0 && (
+                        <div className="space-y-2">
+                          <Label>Discovered from browser tabs (opt-in)</Label>
+                          <div className="max-h-40 overflow-y-auto space-y-1">
+                            {discoveredBrowserUrls.map((url, i) => (
+                              <div
+                                key={i}
+                                className="text-sm font-mono text-muted-foreground p-2 bg-muted rounded truncate"
+                              >
+                                {url}
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            These URLs were discovered from open browser tabs. Enable/disable browser
+                            tab discovery above to refresh.
+                          </p>
+                        </div>
+                      )}
                       <p className="text-xs text-muted-foreground">
                         This app does not read your browser history or profile. You paste the URLs
                         you want to carry across, and they are reopened on the destination.
@@ -447,6 +750,8 @@ export function CaptureScreen() {
                         })),
                         applications: Array.from(selectedAdapters).sort(),
                         browser_urls: browserUrls,
+                        discovered_browser_urls: discoveredBrowserUrls,
+                        app_intents: appIntents,
                         env_var_names: envNames,
                         terminal_commands: selectedAdapters.has('terminal') ? commands : [],
                       },
@@ -470,7 +775,8 @@ export function CaptureScreen() {
                       </ul>
                       <p className="text-sm text-fg-muted mt-2">
                         This is what you asked to capture. Selected project files travel too,
-                        minus the denylist: no .git, no build output or caches, no .env or keys,
+                        including non-Git folders, minus the denylist: no .git, no dependencies,
+                        build output or caches, no .env or keys,
                         no databases or logs, and nothing over the size caps — any skips are
                         listed in the capture warnings. The exact manifest is shown on the next
                         screen, after it has been built and sealed.
@@ -544,6 +850,104 @@ function ProjectRow({
           </p>
         )}
       </label>
+    </div>
+  );
+}
+
+interface ApplicationRowProps {
+  app: DiscoveredApplication;
+  selected: boolean;
+  selectedFolders: Set<string>;
+  onToggleApp: (appId: string) => void;
+  onToggleFolder: (appId: string, folderPath: string) => void;
+  hasAdapter: boolean;
+  adapterId: string | null;
+  isLoading: boolean;
+}
+
+function ApplicationRow({
+  app,
+  selected,
+  selectedFolders,
+  onToggleApp,
+  onToggleFolder,
+  hasAdapter,
+  adapterId,
+  isLoading,
+}: ApplicationRowProps) {
+  return (
+    <div className="border rounded-lg overflow-hidden">
+      <div className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors">
+        <input
+          type="checkbox"
+          id={`app-${app.id}`}
+          checked={selected}
+          onChange={() => onToggleApp(app.id)}
+          disabled={isLoading}
+          className="mt-1 h-4 w-4 rounded border-hairline text-primary accent-primary"
+        />
+        <div className="flex-1 cursor-pointer min-w-0">
+          <label htmlFor={`app-${app.id}`} className="flex-1 cursor-pointer">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium truncate">{app.name}</span>
+              {hasAdapter && adapterId && (
+                <Badge variant="outline" className="text-xs">
+                  Adapter: {adapterId}
+                </Badge>
+              )}
+              {!hasAdapter && (
+                <Badge variant="secondary" className="text-xs">
+                  Manual
+                </Badge>
+              )}
+              {app.executablePath && (
+                <span className="text-xs text-muted-foreground font-mono truncate max-w-[200px]">
+                  {app.executablePath}
+                </span>
+              )}
+            </div>
+            {app.openFolders.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {app.openFolders.length} open folder{app.openFolders.length === 1 ? '' : 's'}
+              </p>
+            )}
+          </label>
+          {selected && app.openFolders.length > 0 && (
+            <div className="mt-2 ml-9 space-y-1 border-l-2 border-primary/20 pl-3">
+              {app.openFolders.map((folder) => (
+                <div
+                  key={folder.path}
+                  className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    id={`app-folder-${app.id}-${folder.path}`}
+                    checked={selectedFolders.has(folder.path)}
+                    onChange={() => onToggleFolder(app.id, folder.path)}
+                    className="h-3.5 w-3.5 rounded border-hairline text-primary accent-primary"
+                  />
+                  <label
+                    htmlFor={`app-folder-${app.id}-${folder.path}`}
+                    className="flex-1 cursor-pointer min-w-0 text-sm"
+                  >
+                    <span className="font-medium truncate">{folder.name}</span>
+                    <span className="text-xs text-muted-foreground font-mono ml-1">
+                      {folder.path}
+                    </span>
+                    {folder.isGitRepo && (
+                      <span className="ml-2 flex items-center gap-1 text-xs text-muted-foreground">
+                        <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
+                        {folder.gitBranch ? ` {folder.gitBranch}` : ''}
+                        {folder.gitDirty && <Badge variant="warning" className="text-[10px]">Dirty</Badge>}
+                      </span>
+                    )}
+                  </label>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

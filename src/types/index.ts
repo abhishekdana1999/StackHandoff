@@ -290,11 +290,70 @@ export interface CaptureSelection {
    * scraping, by decision.
    */
   browserUrls: string[];
+  /** URLs discovered from browser tabs (opt-in only) */
+  discoveredBrowserUrls: string[];
+  /** Application intents discovered from running applications */
+  appIntents: AppIntent[];
   terminalDirs: string[];
   terminalCommands: ApprovedCommand[];
   /** Names only. Values are never captured, whatever the caller asks for. */
   envVarNames: string[];
   policy: CapturePolicy;
+}
+
+/** An application intent discovered from a running application */
+export interface AppIntent {
+  /** Stable identifier for this application intent */
+  id: string;
+  /** Human-readable name of the application */
+  name: string;
+  /** Category of the application */
+  category: ApplicationCategory;
+  /** Whether this application has a dedicated adapter */
+  hasAdapter: boolean;
+  /** Adapter ID if known, for restore routing */
+  adapterId: string | null;
+  /** Folders the user selected to carry over */
+  selectedFolders: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Application Discovery
+// ---------------------------------------------------------------------------
+
+/** Application category for UI grouping. */
+export type ApplicationCategory = 'editor' | 'terminal' | 'browser' | 'ide' | 'database' | 'design' | 'other';
+
+/** A folder discovered as open in an application. */
+export interface DiscoveredFolder {
+  path: string;
+  name: string;
+  isGitRepo: boolean;
+  gitBranch: string | null;
+  gitDirty: boolean;
+}
+
+/** A discovered application with its open folders. */
+export interface DiscoveredApplication {
+  id: string;
+  name: string;
+  category: ApplicationCategory;
+  executablePath: string | null;
+  openFolders: DiscoveredFolder[];
+  hasAdapter: boolean;
+  adapterId: string | null;
+}
+
+/** Result of application discovery. */
+export interface ApplicationDiscoveryResult {
+  applications: DiscoveredApplication[];
+  warnings: string[];
+}
+
+/** Request for application discovery. */
+export interface ApplicationDiscoveryRequest {
+  includeBrowserTabs: boolean;
+  browserIds: string[];
 }
 
 /** `commands::capture::CaptureResult` — camelCase. */

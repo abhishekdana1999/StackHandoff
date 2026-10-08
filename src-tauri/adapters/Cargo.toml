@@ -23,6 +23,23 @@ dirs = { workspace = true }
 tracing = { workspace = true }
 which = { workspace = true }
 url = { workspace = true }
+# CDP client for browser tab enumeration
+reqwest = { version = "0.12", features = ["json", "native-tls"] }
+tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
+
+# Platform-specific window enumeration
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_System_ProcessStatus", "Win32_System_LibraryLoader"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = { version = "0.9" }
+core-foundation-sys = { version = "0.8" }
+core-graphics = { version = "0.23" }
+objc2 = { version = "0.6", features = ["alloc"] }
+objc2-foundation = { version = "0.3" }
+objc2-app-kit = { version = "0.3" }
+objc2-core-graphics = { version = "0.3" }
+libc = { version = "0.2" }
 
 [dev-dependencies]
 tokio = { workspace = true }

@@ -366,7 +366,7 @@ The first time, the app needs to know which folders to look in.
 2. Give it a name you will recognise on the other machine, e.g.
    `Welcome Rewards`. Click **Continue**.
 3. On **Capture Workspace**, tick what to include:
-   - **Project folders** — the checkboxes come from the scan in Settings.
+   - **Project folders** — the checkboxes come from the configured scan roots. Git repositories and folders with common project markers (for example `package.json`, `Cargo.toml`, or `pyproject.toml`) are offered; ordinary unmarked folders are not inferred to be projects.
    - **Applications** — which tools you had open.
    - **URLs** — internal links, one per line.
    - **Environment variables** — names only, one per line.
@@ -381,7 +381,8 @@ The first time, the app needs to know which folders to look in.
    - **Project files travel too.** Every selected project's files are copied into
      the workspace — that is the point of a "clone". The copy is made at capture
      time, and the denylist keeps it safe: version-control internals
-     (`.git`), build output (`node_modules`, `target`, `dist`, `build`, `.next`,
+     (`.git`), dependencies and build output (`node_modules`, `bower_components`,
+     `jspm_packages`, `vendor`, `target`, `dist`, `build`, `.next`,
      caches), Python virtualenvs, `Pods`, and secrets (`.env`, `.pem`/`.key`,
      `id_rsa` & friends, databases, logs) are never included, nothing bigger
      than 128 MiB ships, and the whole snapshot stops at 512 MiB with a warning
@@ -642,8 +643,9 @@ restore plan then legitimately has nothing but the adapter steps.
 
 Confirm on the **sending** machine:
 
-1. Open the capture screen and check **Projects**: it must show repositories it
-   found. The scan looks in `~/projects` and `~/Documents` by default. If your
+1. Open the capture screen and check **Projects**: it must show project folders it
+   found. The scan looks in `~/projects` and `~/Documents` by default. Git
+   repositories and folders with common project markers are detected. If your
    code lives elsewhere, add the folder in **Settings → Project locations**, then
    rescan.
 2. Tick the projects you want **and** the adapters. Terminal working directories

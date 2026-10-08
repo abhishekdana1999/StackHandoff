@@ -302,6 +302,102 @@ pub struct ApprovedCommand {
     pub working_directory: Option<String>,
 }
 
+/// Category of application for UI grouping
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ApplicationCategory {
+    Editor,
+    Terminal,
+    Browser,
+    Ide,
+    Database,
+    Design,
+    Other,
+}
+
+/// A folder discovered as open in an application
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscoveredFolder {
+    /// Absolute path on this machine (redacted before manifest)
+    pub path: String,
+    /// Project name derived from folder
+    pub name: String,
+    /// Whether this folder is a git repository
+    pub is_git_repo: bool,
+    /// Git branch if available
+    pub git_branch: Option<String>,
+    /// Whether the worktree has uncommitted changes
+    pub git_dirty: bool,
+}
+
+/// Discovered application with its open folders
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscoveredApplication {
+    /// Stable identifier for this application
+    pub id: String,
+    /// Human-readable name
+    pub name: String,
+    /// Application category for grouping
+    pub category: ApplicationCategory,
+    /// Platform-specific executable path (kept local, not sent in manifest)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub executable_path: Option<String>,
+    /// Open folders/projects this application has open
+    pub open_folders: Vec<DiscoveredFolder>,
+    /// Whether this application is well-known and has a dedicated adapter
+    pub has_adapter: bool,
+    /// Adapter ID if known, for restore routing
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub adapter_id: Option<String>,
+}
+
+/// Result of application discovery
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApplicationDiscoveryResult {
+    pub applications: Vec<DiscoveredApplication>,
+    /// Applications that were detected but could not be fully enumerated
+    pub partial: Vec<DiscoveredApplication>,
+    /// Warnings about discovery limitations
+    pub warnings: Vec<String>,
+}
+
+/// Request for application discovery
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApplicationDiscoveryRequest {
+    /// Whether to include browser tab discovery (explicit opt-in)
+    pub include_browser_tabs: bool,
+    /// Specific browser IDs to query (empty = all detected browsers)
+    pub browser_ids: Vec<String>,
+}
+
+impl Default for ApplicationDiscoveryRequest {
+    fn default() -> Self {
+        Self {
+            include_browser_tabs: false,
+            browser_ids: Vec::new(),
+        }
+    }
+}
+
+/// An application intent discovered from a running application.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AppIntent {
+    /// Stable identifier for this application intent
+    pub id: String,
+    /// Human-readable name of the application
+    pub name: String,
+    /// Category of the application
+    pub category: ApplicationCategory,
+    /// Whether this application has a dedicated adapter
+    pub has_adapter: bool,
+    /// Adapter ID if known, for restore routing
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub adapter_id: Option<String>,
+    /// Folders the user selected to carry over
+    pub selected_folders: Vec<String>,
+}
+
 /// Everything the user chose to include in a capture.
 ///
 /// The lists are the authority: there are no parallel boolean flags, because a
@@ -334,6 +430,12 @@ pub struct CaptureSelection {
     pub include_applications: Vec<String>,
     /// URLs the user pasted in. Browser history is never read.
     pub browser_urls: Vec<String>,
+    /// URLs discovered from browser tabs (opt-in only)
+    #[serde(default)]
+    pub discovered_browser_urls: Vec<String>,
+    /// Application intents discovered from running applications
+    #[serde(default)]
+    pub app_intents: Vec<AppIntent>,
     /// Terminal working directories, normally the selected projects.
     pub terminal_dirs: Vec<String>,
     /// Commands the user chose to offer on the destination.

@@ -1,8 +1,7 @@
 //! Project discovery.
 //!
-//! Walks the user's configured project roots and reports the git repositories it
-//! finds, so the capture screen can show real repositories with real branch and
-//! dirty-state data instead of placeholders.
+//! Walks the user's configured project roots and reports Git repositories and
+//! recognizable non-Git project folders.
 //!
 //! The walk is bounded in both depth and breadth. A user's home directory can
 //! contain hundreds of thousands of files, and an unbounded scan would hang the
@@ -21,7 +20,10 @@ const MAX_DEPTH: usize = 4;
 /// projects, and are large enough to dominate the scan.
 const SKIPPED_DIRS: &[&str] = &[
     "node_modules",
+    "bower_components",
+    "jspm_packages",
     "target",
+    "vendor",
     ".venv",
     "venv",
     "__pycache__",
@@ -29,7 +31,6 @@ const SKIPPED_DIRS: &[&str] = &[
     ".nuxt",
     "dist",
     "build",
-    "vendor",
     "Pods",
     "DerivedData",
     ".gradle",
@@ -39,11 +40,47 @@ const SKIPPED_DIRS: &[&str] = &[
     "Applications",
 ];
 
-/// Upper bound on repositories reported from a single root, so one monorepo
+/// Upper bound on projects reported from a single root, so one monorepo
 /// cannot produce an unusable list.
 const MAX_RESULTS_PER_ROOT: usize = 200;
 
-/// A git repository found on disk.
+/// Files that identify a project folder when it is not a Git repository.
+const PROJECT_MARKERS: &[&str] = &[
+    "package.json",
+    "pnpm-workspace.yaml",
+    "cargo.toml",
+    "go.mod",
+    "pyproject.toml",
+    "setup.py",
+    "setup.cfg",
+    "requirements.txt",
+    "pipfile",
+    "gemfile",
+    "composer.json",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "settings.gradle",
+    "settings.gradle.kts",
+    "mix.exs",
+    "pubspec.yaml",
+    "deno.json",
+    "deno.jsonc",
+    "bun.lock",
+    "bun.lockb",
+    "makefile",
+    "cmakelists.txt",
+    "meson.build",
+    "package.swift",
+    "justfile",
+    "taskfile.yml",
+    "readme",
+    "readme.md",
+    "readme.rst",
+    "index.html",
+];
+
+/// A project folder found on disk.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScannedProject {
     pub id: String,
@@ -93,7 +130,7 @@ fn slugify(name: &str) -> String {
         .collect()
 }
 
-/// Scan each root for repositories, newest configuration first.
+/// Scan each root for Git repositories and folders containing project markers.
 ///
 /// Roots that do not exist are skipped rather than reported as errors: a user
 /// who configured `~/projects` on one machine and not another should still get
@@ -113,38 +150,79 @@ pub fn scan_roots(roots: &[PathBuf]) -> Vec<ScannedProject> {
                 debug!("Reached the per-root result cap at {}", root.display());
                 break;
             }
-            if !dir.join(".git").exists() {
+            let is_git_repo = dir.join(".git").exists();
+            if !is_git_repo && !has_project_marker(&dir) {
                 continue;
             }
 
-            let repo_root = match dir.canonicalize() {
+            let project_root = match dir.canonicalize() {
                 Ok(p) => p,
                 Err(_) => continue,
             };
-            // A nested repository inside one already reported would otherwise
-            // appear twice.
-            if !seen.insert(repo_root.clone()) {
+            // A configured root may be nested under another configured root.
+            // Keep Git repositories independently selectable, but don't list
+            // every marked subfolder inside a selected project.
+            if !is_git_repo
+                && seen
+                    .iter()
+                    .any(|ancestor: &PathBuf| project_root.starts_with(ancestor))
+            {
+                continue;
+            }
+            if !seen.insert(project_root.clone()) {
                 continue;
             }
 
-            let name = repo_root
+            let name = project_root
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| repo_root.to_string_lossy().to_string());
+                .unwrap_or_else(|| project_root.to_string_lossy().to_string());
 
             found.push(ScannedProject {
-                id: ScannedProject::id_for(&repo_root),
+                id: ScannedProject::id_for(&project_root),
                 name,
-                path: repo_root.to_string_lossy().to_string(),
-                repo_root: repo_root.to_string_lossy().to_string(),
-                is_git_repo: true,
-                git: read_git_summary(&repo_root),
+                path: project_root.to_string_lossy().to_string(),
+                repo_root: project_root.to_string_lossy().to_string(),
+                is_git_repo,
+                git: if is_git_repo {
+                    read_git_summary(&project_root)
+                } else {
+                    None
+                },
             });
         }
     }
 
     found.sort_by(|a, b| a.name.cmp(&b.name));
     found
+}
+
+/// Return true when a folder contains a conventional project or workspace file.
+///
+/// This deliberately checks only immediate children: project markers inside
+/// `src/` or dependency trees must not turn those nested folders into projects.
+fn has_project_marker(dir: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return false;
+    };
+
+    entries.flatten().any(|entry| {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        let Ok(file_type) = entry.file_type() else {
+            return false;
+        };
+        let lower_name = name.to_ascii_lowercase();
+        if file_type.is_dir() {
+            return lower_name.ends_with(".xcodeproj") || lower_name.ends_with(".xcworkspace");
+        }
+        file_type.is_file()
+            && (PROJECT_MARKERS
+                .iter()
+                .any(|marker| marker.eq_ignore_ascii_case(&name))
+                || lower_name.ends_with(".csproj")
+                || lower_name.ends_with(".sln"))
+    })
 }
 
 /// Depth-first directory walk with the skip list applied.
@@ -182,7 +260,10 @@ fn walk(root: &Path, max_depth: usize) -> Vec<PathBuf> {
             if name.starts_with('.') && name != ".config" {
                 continue;
             }
-            if SKIPPED_DIRS.contains(&name.as_ref()) {
+            if SKIPPED_DIRS
+                .iter()
+                .any(|skipped| skipped.eq_ignore_ascii_case(&name))
+            {
                 continue;
             }
 
@@ -435,5 +516,55 @@ mod tests {
             "a repository below the root was missed: {:?}",
             results.iter().map(|p| &p.repo_root).collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn non_git_project_folders_are_found_without_listing_nested_folders_or_dependencies() {
+        let root = std::env::temp_dir().join(format!(
+            "wc-scan-non-git-project-test-{}",
+            std::process::id()
+        ));
+        let project = root.join("plain-project");
+        std::fs::create_dir_all(project.join("src")).unwrap();
+        std::fs::write(project.join("package.json"), "{}").unwrap();
+        std::fs::write(project.join("src").join("README.md"), "# nested").unwrap();
+        std::fs::create_dir_all(project.join("node_modules").join("dependency")).unwrap();
+        std::fs::write(
+            project.join("node_modules").join("dependency").join("package.json"),
+            "{}",
+        )
+        .unwrap();
+        std::fs::create_dir_all(root.join("ordinary-folder")).unwrap();
+        std::fs::write(
+            root.join("ordinary-folder").join("notes.txt"),
+            "not a project",
+        )
+        .unwrap();
+
+        let results = scan_roots(std::slice::from_ref(&root));
+        let project_path = project.canonicalize().unwrap();
+
+        assert!(
+            results.iter().any(|candidate| {
+                candidate.path == project_path.to_string_lossy()
+                    && !candidate.is_git_repo
+                    && candidate.git.is_none()
+            }),
+            "the non-Git project was not offered: {results:?}"
+        );
+        assert!(
+            !results
+                .iter()
+                .any(|candidate| candidate.path.contains("node_modules")),
+            "a dependency directory was offered as a project: {results:?}"
+        );
+        assert!(
+            !results
+                .iter()
+                .any(|candidate| candidate.name == "ordinary-folder"),
+            "an arbitrary folder without a project marker was offered: {results:?}"
+        );
+
+        std::fs::remove_dir_all(&root).ok();
     }
 }

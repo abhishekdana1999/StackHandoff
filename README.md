@@ -11,7 +11,7 @@ The current implementation is an MVP focused on the same-network workflow: pair 
 - Local peer-to-peer pairing over the same network
 - Device discovery and authenticated pairing with Noise/X25519 keys
 - Trust scopes for paired-device permissions
-- Workspace capture for project roots and associated metadata
+- Workspace capture for Git repositories and recognizable non-Git project folders, with filtered project-file transfer
 - Workspace transfer and receipt between paired devices
 - Incoming-transfer handling and explicit accept/refuse flow
 - Preflight, prepare, and restore-preview stages before applying a workspace
@@ -28,7 +28,7 @@ These are part of the product roadmap, not the current implementation:
 - Remote restore requests without a local paired network
 - Bulk credential or secret synchronization
 - Automatic restoration of every runtime, app, and service on the machine
-- Full non-Git folder sync for all developer workloads
+- Automatic discovery of arbitrary folders that do not contain recognizable project files
 - Paid cloud plans, hosted services, or managed account features
 - Broader automation beyond the local workspace restore flow
 
@@ -49,7 +49,7 @@ Apply restore and continue working
 ```
 
 1. Pair a second machine running StackHandoff and compare the safety number out of band.
-2. Capture a workspace from the current machine: the current project roots, Git state, and workspace metadata.
+2. Capture a workspace from the current machine: selected project folders (Git or non-Git), Git state when available, and workspace metadata.
 3. Send the workspace to a paired device over the local network.
 4. On the receiving machine, review the incoming transfer and decide whether to accept it.
 5. Inspect the restore plan and preflight checks before applying it.

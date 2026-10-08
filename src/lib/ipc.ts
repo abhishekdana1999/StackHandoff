@@ -21,6 +21,8 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import type {
+  ApplicationDiscoveryRequest,
+  ApplicationDiscoveryResult,
   CaptureResult,
   CaptureSelection,
   DiscoveredDevice,
@@ -66,8 +68,14 @@ export function errorMessage(error: unknown): string {
 }
 
 // ---------------------------------------------------------------------------
-// App
+// Application Discovery
 // ---------------------------------------------------------------------------
+
+export const discoverApplications = (request?: Partial<ApplicationDiscoveryRequest>): Promise<ApplicationDiscoveryResult> =>
+  invoke('discover_applications', {
+    includeBrowserTabs: request?.includeBrowserTabs ?? false,
+    browserIds: request?.browserIds ?? [],
+  });
 
 export const getAppVersion = (): Promise<string> => invoke('get_app_version');
 

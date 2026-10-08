@@ -1,6 +1,7 @@
 //! Tauri commands for StackHandoff
 
 pub mod app;
+pub mod app_discovery;
 pub mod capture;
 pub mod device;
 pub mod preflight;
@@ -302,6 +303,7 @@ fn platform_os_version() -> String {
 
 /// Re-export command modules
 pub use app::*;
+pub use app_discovery::*;
 pub use capture::*;
 pub use device::*;
 pub use preflight::*;
