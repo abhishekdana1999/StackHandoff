@@ -13,9 +13,7 @@ dist-ssr/
 coverage/
 *.tsbuildinfo
 
-# The tracker manifest written by scripts/log_tracker.py, recording which rows
-# that script owns so it refuses to overwrite pre-existing history. Bookkeeping,
-# not source.
+# Local tracker metadata; bookkeeping, not source.
 .tracker-ids-written.json
 
 # Real databases and their WAL sidecars. The app creates these next to the
@@ -54,3 +52,9 @@ brag-output/**/frames/
 # Docs
 docs/WorkspaceClone_Tracking.xlsx
 docs/PRODUCT_GROWTH_PLAN.md
+
+# Personal/session-specific spreadsheet maintenance scripts.
+/scripts/create_tracking.py
+/scripts/fix_tracker_bug022.py
+/scripts/update_tracker.py
+/scripts/update_tracker_session*.py

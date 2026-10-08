@@ -753,7 +753,7 @@ openshorts/                     ← frontend + Rust workspace + tracker
 │   ├── DEVELOPER_GUIDE.md      ← this file
 │   ├── ISSUE_WINDOWS_HANDOFF_2026-09-29.md
 │   └── WorkspaceClone_Tracking.xlsx
-├── scripts/                    ← tracker updater, parity + token checkers
+├── scripts/                    ← build, audit, screenshot, parity + token tools
 ├── src/                        ← React + TypeScript
 │   ├── lib/ipc.ts              ← THE ONLY FILE THAT NAMES A TAURI COMMAND
 │   ├── types/index.ts          ← TypeScript mirror of every Rust payload
