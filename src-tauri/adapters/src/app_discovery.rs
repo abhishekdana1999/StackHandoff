@@ -17,6 +17,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+#[cfg(target_os = "macos")]
 use tracing::warn;
 use workspace_clone_core::Result;
 
@@ -121,14 +122,11 @@ impl AppDiscoveryAdapter {
     async fn enumerate_windows_windows(&self) -> Vec<DiscoveredApplication> {
         use windows::Win32::Foundation::*;
         use windows::Win32::UI::WindowsAndMessaging::*;
-        use windows::Win32::System::Threading::*;
-        use windows::Win32::System::ProcessStatus::*;
-        use windows::Win32::System::LibraryLoader::*;
 
         let mut apps = HashMap::new();
 
         unsafe {
-            let mut windows = Vec::new();
+            let mut windows: Vec<(HWND, u32)> = Vec::new();
             EnumWindows(Some(enum_windows_callback), LPARAM(&mut windows as *mut _ as isize)).ok();
 
             for (hwnd, pid) in windows {
@@ -553,27 +551,32 @@ fn find_cdp_port(browser_id: &str) -> u16 {
 
 /// Windows callback for EnumWindows
 #[cfg(target_os = "windows")]
-unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
-    let windows = &mut *(lparam.0 as *mut Vec<(HWND, u32)>);
+unsafe extern "system" fn enum_windows_callback(
+    hwnd: windows::Win32::Foundation::HWND,
+    lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::BOOL {
+    use windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId;
+
+    let windows = &mut *(lparam.0 as *mut Vec<(windows::Win32::Foundation::HWND, u32)>);
     let mut pid = 0;
     GetWindowThreadProcessId(hwnd, Some(&mut pid));
     if pid > 0 {
         windows.push((hwnd, pid));
     }
-    TRUE
+    windows::Win32::Foundation::TRUE
 }
 
 /// Get process name from PID (Windows)
 #[cfg(target_os = "windows")]
 fn get_process_name(pid: u32) -> Option<String> {
     use windows::Win32::System::Threading::*;
-    use windows::Win32::Foundation::*;
+    use windows::Win32::Foundation::{FALSE, HMODULE};
+    use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
 
     unsafe {
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid).ok()?;
         let mut name = [0u16; 260];
-        let mut size = 260;
-        if GetModuleFileNameExW(handle, HMODULE(0), &mut name, size).0 > 0 {
+        if GetModuleFileNameExW(handle, HMODULE(std::ptr::null_mut()), &mut name) > 0 {
             let path = String::from_utf16_lossy(&name);
             Path::new(&path)
                 .file_name()
@@ -588,13 +591,13 @@ fn get_process_name(pid: u32) -> Option<String> {
 #[cfg(target_os = "windows")]
 fn get_process_path(pid: u32) -> Option<String> {
     use windows::Win32::System::Threading::*;
-    use windows::Win32::Foundation::*;
+    use windows::Win32::Foundation::{FALSE, HMODULE};
+    use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
 
     unsafe {
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid).ok()?;
         let mut name = [0u16; 260];
-        let mut size = 260;
-        if GetModuleFileNameExW(handle, HMODULE(0), &mut name, size).0 > 0 {
+        if GetModuleFileNameExW(handle, HMODULE(std::ptr::null_mut()), &mut name) > 0 {
             Some(String::from_utf16_lossy(&name))
         } else {
             None
