@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
+  Cloud,
   Monitor,
   FolderKanban,
   Settings as SettingsIcon,
@@ -17,20 +18,22 @@ import { useThemeStore } from '../store/useThemeStore';
 const navigation = [
   { name: 'Workspaces', href: '/workspaces', icon: FolderKanban },
   { name: 'Devices', href: '/devices', icon: Monitor },
+  { name: 'Cloud', href: '/cloud', icon: Cloud },
   { name: 'Settings', href: '/settings', icon: SettingsIcon },
 ];
 
 /**
- * The three top-level sections, and nothing else.
+ * The top-level sections, and nothing else.
  *
  * Everything else in the app is a step inside one of them, reached by a button
  * on that section's screen. Treating them as siblings of the sections would
  * mean a sidebar that changes shape as you move, which is a browser pattern.
  */
-const SECTIONS = new Set(['/workspaces', '/devices', '/settings', '/welcome']);
+const SECTIONS = new Set(['/workspaces', '/devices', '/cloud', '/settings', '/welcome']);
 
 function titleFor(path: string): string {
   if (path === '/devices') return 'Devices';
+  if (path === '/cloud') return 'Cloud';
   if (path === '/settings') return 'Settings';
   if (path === '/welcome') return 'Welcome';
   if (path.startsWith('/capture')) return 'Capture Workspace';

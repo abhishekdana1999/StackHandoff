@@ -18,18 +18,28 @@ The current implementation is an MVP focused on the same-network workflow: pair 
 - Restore execution tracking and success/failure reporting
 - Desktop app built with Tauri + React + Rust
 - Cross-platform desktop project setup for macOS, Windows, and Linux targets
+- A Cloud screen that connects to the StackHandoff cloud API: email/password
+  sign-in, plan tiers and limits, cloud device registration, and relay transfer
+  listing (additive — the local P2P flow needs no account)
+- PayPal checkout for the paid plans (Orders v2). The app asks the API to open
+  an order — no PayPal credential, not even the public client id, ever reaches
+  the frontend — redirects the buyer to PayPal, and the API captures the
+  approved order before granting the plan (sandbox credentials in `.env.dev`
+  today, live swap is a credentials-only change)
 
 ### Planned / not yet shipped
 
 These are part of the product roadmap, not the current implementation:
 
-- Cloud relay or internet-based handoff
-- Account-based device registration and remote management
+- The internet relay data plane itself (transfers are currently cloud-side
+  records; the encrypted payload still moves over the local network)
 - Remote restore requests without a local paired network
 - Bulk credential or secret synchronization
 - Automatic restoration of every runtime, app, and service on the machine
 - Automatic discovery of arbitrary folders that do not contain recognizable project files
-- Paid cloud plans, hosted services, or managed account features
+- Recurring/billing-webhook support for the paid cloud plans (each PayPal
+  approval currently captures a one-time payment; auto-renewal needs a live
+  business account and PayPal subscription webhooks)
 - Broader automation beyond the local workspace restore flow
 
 ## How the shipped flow works
@@ -64,7 +74,7 @@ StackHandoff does not currently:
 - copy passwords or secrets between machines
 - silently grant access to arbitrary devices
 - replace the user's entire machine configuration automatically
-- provide cloud-hosted workspace relay or account-based handoff
+- provide a cloud-hosted workspace relay (cloud accounts and plan management exist, but the encrypted payload still moves over the local network)
 - attempt to restore every possible runtime or service without review
 
 ## Getting started
@@ -98,6 +108,38 @@ cargo test --workspace
 cargo fmt --all --check
 ```
 
+## Cloud API
+
+The Cloud screen talks to a separate NestJS service (the
+`stackhandoff-backend` project). It is optional: the local peer-to-peer flow
+works with it stopped. To run the two together:
+
+```bash
+# 1. start the cloud API (listens on :3000)
+#    its .env.dev points at the dev Supabase project, so sign-up/login work
+cd ../stackhandoff-backend && npm run dev
+
+# 2. start the app dev server (listens on :1420)
+npm run dev
+
+# 3. open the app and visit the Cloud section
+#    http://localhost:1420/cloud
+```
+
+The client's base URL defaults to `http://localhost:3000` in development and is
+overridable with `VITE_CLOUD_API_URL`. Production builds read `.env.production`,
+which points at `https://api.stackhandoff.com`. The transport lives in
+`src/lib/cloudApi.ts`; the session is in `src/store/useCloudStore.ts`; the screen
+is `src/screens/CloudScreen.tsx`.
+
+To verify the full journey end to end — a real browser, the live API, sign-up →
+PayPal checkout → cancelled-return handling → device registration → sign-out —
+run both servers and then:
+
+```bash
+node scripts/verify-cloud.mjs
+```
+
 ## Tech stack
 
 | Layer | What it is |
@@ -105,6 +147,7 @@ cargo fmt --all --check
 | Shell | [Tauri 2](https://v2.tauri.app/) desktop app |
 | Frontend | React 18 + TypeScript + Vite + Tailwind |
 | Backend | Rust workspace under `src-tauri/` with crates for core app logic, networking, crypto, database, adapters, preflight, restore, and Tauri commands |
+| Cloud API | Separate NestJS service for accounts, plans, devices, and transfers (optional; see above) |
 | Data | SQLite via SQLx |
 | Transport | mDNS discovery, authenticated device pairing, and encrypted peer transfer |
 
