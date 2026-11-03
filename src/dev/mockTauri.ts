@@ -338,7 +338,11 @@ const PROJECT_SCAN: ProjectScan = {
 
 const DEVICE_IDENTITY: DeviceIdentity = {
   signingPublicKeyB64: 'ed25519-b64',
-  noisePublicKeyB64: 'noise-b64',
+  // A realistic 32-byte X25519 key, base64. It was a short placeholder ('noise-b64'),
+  // which the cloud API rejects: RegisterDeviceDto requires at least 16
+  // characters, so registering this device against the live backend failed on a
+  // fixture that was never a real key.
+  noisePublicKeyB64: 'BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=',
   fingerprint: FINGERPRINT,
 };
 

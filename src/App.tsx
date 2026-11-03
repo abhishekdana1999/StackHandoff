@@ -11,6 +11,7 @@ import { PrepareScreen } from '@screens/PrepareScreen';
 import { RestorePreviewScreen } from '@screens/RestorePreviewScreen';
 import { RestoreReportScreen } from '@screens/RestoreReportScreen';
 import { SettingsScreen } from '@screens/SettingsScreen';
+import { CloudScreen } from '@screens/CloudScreen';
 import { LoadingScreen } from '@components/LoadingScreen';
 
 function AppRoutes() {
@@ -49,6 +50,7 @@ function AppRoutes() {
         <Route path="prepare/:workspaceId" element={<PrepareScreen />} />
         <Route path="restore-preview/:workspaceId" element={<RestorePreviewScreen />} />
         <Route path="restore-report/:restoreRunId" element={<RestoreReportScreen />} />
+        <Route path="cloud" element={<CloudScreen />} />
         <Route path="settings" element={<SettingsScreen />} />
       </Route>
       <Route path="*" element={<Navigate to="/workspaces" replace />} />
